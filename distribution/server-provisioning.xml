@@ -20,5 +20,6 @@
     </feature-packs>
     <version-overrides>
         <version-override groupId="org.apache.avro" artifactId="avro" version="1.9.1"/>
+        <version-override groupId="com.h2database" artifactId="h2" version="1.4.198"/>
     </version-overrides>
 </server-provisioning>
