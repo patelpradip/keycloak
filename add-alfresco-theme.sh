@@ -35,10 +35,12 @@ fi
 
 WORK_DIR="$PWD"
 TMP=$(mktemp -d)
-# Get keycloak version
-log_info "Getting keycloak version..."
-VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-log_info "Found keycloak version: $VERSION"
+VERSION="$KEYCLOAK_VERSION"
+if [ -z "$VERSION" ]; then
+    log_info "KEYCLOAK_VERSION environment variable is not set. Get the version from the project pom.xml"
+    VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+fi
+log_info "Using keycloak version: $VERSION"
 
 KEYCLOAK_DIR="$WORK_DIR/distribution/server-dist/target"
 KEYCLOAK_DIST="$KEYCLOAK_DIR/keycloak-$VERSION.zip"
