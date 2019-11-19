@@ -11,6 +11,7 @@ env:
   global:
     - MAVEN_SKIP_RC=true
     - MAVEN_OPTS="-Xms512m -Xmx1536m"
+    - THEME_VERSION=0.1
   matrix:
     - TESTS=unit
     - TESTS=server-group1
@@ -46,5 +47,20 @@ script:
 
 after_success:
   - .travis/docker-hub-master-trigger.sh
+
+before_deploy:
+  - mvn -Pdistribution -pl distribution/server-dist -am -Dmaven.test.skip clean install
+  - export KEYCLOAK_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+  - echo "Prepare deployment of keycloak-$KEYCLOAK_VERSION"
+  - ./add-alfresco-theme.sh
+
+deploy:
+  provider: releases
+  api_key: $GITHUB_TOKEN
+  file: "distribution/server-dist/target/keycloak-$KEYCLOAK_VERSION.zip"
+  skip_cleanup: true
+  edge: true
+  on:
+    tags: true
 
 sudo: false
