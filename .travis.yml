@@ -57,7 +57,7 @@ before_deploy:
 deploy:
   provider: releases
   api_key: $GITHUB_TOKEN
-  file: "distribution/server-dist/target/keycloak-$KEYCLOAK_VERSION.zip"
+  file: "distribution/server-dist/target/keycloak-$TRAVIS_TAG.zip"
   skip_cleanup: true
   edge: true
   on:
