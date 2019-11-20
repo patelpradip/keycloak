@@ -14,12 +14,12 @@ print_usage() {
     The required environment variables are not set:
     - THEME_VERSION
     OR
-    - GIT_REPO
-    - GIT_BRANCH ('master' will be used if not set)
+    - THEME_GIT_REPO
+    - THEME_GIT_BRANCH ('master' will be used if not set)
 
     Example-1, adding alfresco-theme from a branch:
-        export GIT_REPO=alfresco-keycloak-theme
-        export GIT_BRANCH=test-branch
+        export THEME_GIT_REPO=alfresco-keycloak-theme
+        export THEME_GIT_BRANCH=test-branch
         sh add-alfresco-theme.sh
 
     Example-2, adding alfresco-theme from a released version:
@@ -29,16 +29,18 @@ EOF
     exit 1
 }
 
-if [ -z "$THEME_VERSION" ] && [ -z "$GIT_REPO" ]; then
+if [ -z "$THEME_VERSION" ] && [ -z "$THEME_GIT_REPO" ]; then
     print_usage
 fi
 
 WORK_DIR="$PWD"
 TMP=$(mktemp -d)
-# Get keycloak version
-log_info "Getting keycloak version..."
-VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-log_info "Found keycloak version: $VERSION"
+VERSION="$KEYCLOAK_VERSION"
+if [ -z "$VERSION" ]; then
+    log_info "KEYCLOAK_VERSION environment variable is not set. Get the version from the project pom.xml"
+    VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+fi
+log_info "Using keycloak version: $VERSION"
 
 KEYCLOAK_DIR="$WORK_DIR/distribution/server-dist/target"
 KEYCLOAK_DIST="$KEYCLOAK_DIR/keycloak-$VERSION.zip"
@@ -47,14 +49,14 @@ if [ ! -f "$KEYCLOAK_DIST" ]; then
 fi
 
 cd $TMP
-if [ -n "$GIT_REPO" ]; then
-    if [ -z "$GIT_BRANCH" ]; then
-        GIT_BRANCH='master'
+if [ -n "$THEME_GIT_REPO" ]; then
+    if [ -z "$THEME_GIT_BRANCH" ]; then
+        THEME_GIT_BRANCH='master'
     fi
 
     # Clone repository
-    log_info "Clone branch '$GIT_BRANCH' from repo: $GIT_REPO"
-    git clone --depth 1 https://github.com/Alfresco/$GIT_REPO.git -b $GIT_BRANCH alfresco-keycloak-theme
+    log_info "Clone branch '$THEME_GIT_BRANCH' from repo: $THEME_GIT_REPO"
+    git clone --depth 1 https://github.com/Alfresco/$THEME_GIT_REPO.git -b $THEME_GIT_BRANCH alfresco-keycloak-theme
 
     mkdir alfresco
     log_info "Copy Alfresco theme..."
