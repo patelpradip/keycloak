@@ -48,6 +48,15 @@ if [ ! -f "$KEYCLOAK_DIST" ]; then
     log_error "$KEYCLOAK_DIST does not exist."
 fi
 
+# TRAVIS_TAG env variable will be set automatically by travis-ci if the current build is for a git tag
+RELEASE_TAG="$TRAVIS_TAG"
+if [ -z "$RELEASE_TAG" ]; then
+    log_info "TRAVIS_TAG environment variable is not set. Using version '$VERSION' instead."
+    RELEASE_TAG="$VERSION"
+fi
+log_info "Using tag's name: $RELEASE_TAG"
+
+
 cd $TMP
 if [ -n "$THEME_GIT_REPO" ]; then
     if [ -z "$THEME_GIT_BRANCH" ]; then
@@ -78,8 +87,12 @@ rm $KEYCLOAK_DIST
 
 log_info "Add Alfresco theme into keycloak-$VERSION/themes"
 cp -rf alfresco keycloak-$VERSION/themes/
-log_info "Zipping 'keycloak-$VERSION'..."
-zip -rq $KEYCLOAK_DIST keycloak-$VERSION
+
+log_info "Rename 'keycloak-$VERSION' to 'keycloak-$RELEASE_TAG'"
+mv keycloak-$VERSION keycloak-$RELEASE_TAG
+
+log_info "Zipping 'keycloak-$RELEASE_TAG'..."
+zip -rq $KEYCLOAK_DIR/keycloak-$RELEASE_TAG.zip keycloak-$RELEASE_TAG
 
 cd $WORK_DIR
 log_info "Cleanup temp directory..."
