@@ -58,11 +58,10 @@ jobs:
     - stage: Deploy
       env: # overwrite with empty
       before_install: skip
-      before_script: skip
       script: skip
       after_success: false
       before_deploy:
-        - mvn -Pdistribution -pl distribution/server-dist -am -Dmaven.test.skip clean install
+        - ./travis-build-server.sh
         - export KEYCLOAK_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
         - echo "Prepare deployment of keycloak-$KEYCLOAK_VERSION"
         - ./add-alfresco-theme.sh
