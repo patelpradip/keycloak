@@ -15,7 +15,7 @@ echo "Do you wish to tag and push the current branch '$CURRENT_BRANCH' as '$TAG'
 select yn in "Yes" "No"; do
     case $yn in
     Yes)
-        git tag "$TAG"
+        git tag "$TAG" -m ""
         git push origin "$TAG"
         break
         ;;

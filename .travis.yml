@@ -62,8 +62,7 @@ jobs:
       after_success: false
       before_deploy:
         - ./travis-build-server.sh
-        - export KEYCLOAK_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-        - echo "Prepare deployment of keycloak-$KEYCLOAK_VERSION"
+        - echo "Prepare deployment of keycloak-$TRAVIS_TAG"
         - ./add-alfresco-theme.sh
       deploy:
         provider: releases
