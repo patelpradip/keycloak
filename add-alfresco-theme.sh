@@ -17,14 +17,14 @@ print_usage() {
     - THEME_GIT_REPO
     - THEME_GIT_BRANCH ('master' will be used if not set)
 
-    Example-1, adding alfresco-theme from a branch:
+    Example-1, adding alfresco-theme from a released version:
+        export THEME_VERSION=0.1
+        ./add-alfresco-theme.sh
+
+    Example-2, adding alfresco-theme from a branch:
         export THEME_GIT_REPO=alfresco-keycloak-theme
         export THEME_GIT_BRANCH=test-branch
-        sh add-alfresco-theme.sh
-
-    Example-2, adding alfresco-theme from a released version:
-        export THEME_VERSION=0.1
-        sh add-alfresco-theme.sh
+        ./add-alfresco-theme.sh
 EOF
     exit 1
 }
@@ -35,11 +35,9 @@ fi
 
 WORK_DIR="$PWD"
 TMP=$(mktemp -d)
-VERSION="$KEYCLOAK_VERSION"
-if [ -z "$VERSION" ]; then
-    log_info "KEYCLOAK_VERSION environment variable is not set. Get the version from the project pom.xml"
-    VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-fi
+
+log_info "Get keycloak version from the project pom.xml"
+VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
 log_info "Using keycloak version: $VERSION"
 
 KEYCLOAK_DIR="$WORK_DIR/distribution/server-dist/target"
@@ -53,8 +51,9 @@ RELEASE_TAG="$TRAVIS_TAG"
 if [ -z "$RELEASE_TAG" ]; then
     log_info "TRAVIS_TAG environment variable is not set. Using version '$VERSION' instead."
     RELEASE_TAG="$VERSION"
+else
+    log_info "Using tag's name: $RELEASE_TAG"
 fi
-log_info "Using tag's name: $RELEASE_TAG"
 
 
 cd $TMP
@@ -88,8 +87,10 @@ rm $KEYCLOAK_DIST
 log_info "Add Alfresco theme into keycloak-$VERSION/themes"
 cp -rf alfresco keycloak-$VERSION/themes/
 
-log_info "Rename 'keycloak-$VERSION' to 'keycloak-$RELEASE_TAG'"
-mv keycloak-$VERSION keycloak-$RELEASE_TAG
+if [ "$VERSION" != "$RELEASE_TAG" ]; then
+    log_info "Rename 'keycloak-$VERSION' to 'keycloak-$RELEASE_TAG'"
+    mv keycloak-$VERSION keycloak-$RELEASE_TAG
+fi
 
 log_info "Zipping 'keycloak-$RELEASE_TAG'..."
 zip -rq $KEYCLOAK_DIR/keycloak-$RELEASE_TAG.zip keycloak-$RELEASE_TAG
