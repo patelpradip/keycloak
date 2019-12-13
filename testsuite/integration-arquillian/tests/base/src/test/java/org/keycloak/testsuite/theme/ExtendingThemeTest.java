@@ -5,6 +5,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.testsuite.AbstractKeycloakTest;
+import org.keycloak.testsuite.util.ContainerAssume;
 import org.keycloak.theme.Theme;
 import org.keycloak.theme.ThemeProvider;
 
@@ -20,7 +21,7 @@ public class ExtendingThemeTest extends AbstractKeycloakTest {
 
     @Before
     public void setUp() {
-        System.setProperty("existing_system_property", "Keycloak is awesome");
+        testingClient.server().run(session -> System.setProperty("existing_system_property", "Keycloak is awesome"));
     }
 
     @Override
@@ -30,6 +31,8 @@ public class ExtendingThemeTest extends AbstractKeycloakTest {
     // KEYCLOAK-6698
     @Test
     public void systemPropertiesSubstitutionInThemeProperties() {
+        // TODO fix this test on auth-server-wildfly. There is an issue with setup of System properties (other JVM).
+        ContainerAssume.assumeAuthServerUndertow();
         testingClient.server().run(session -> {
             try {
                 ThemeProvider extending = session.getProvider(ThemeProvider.class, "extending");

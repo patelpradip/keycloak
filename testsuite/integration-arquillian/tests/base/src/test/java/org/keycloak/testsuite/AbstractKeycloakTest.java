@@ -61,6 +61,7 @@ import org.keycloak.testsuite.util.TestEventsLogger;
 import org.openqa.selenium.WebDriver;
 
 import javax.ws.rs.NotFoundException;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 
 import java.io.IOException;
@@ -81,6 +82,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.keycloak.testsuite.admin.Users.setPasswordFor;
 import static org.keycloak.testsuite.auth.page.AuthRealm.ADMIN;
@@ -144,8 +146,6 @@ public abstract class AbstractKeycloakTest {
     @Page
     protected WelcomePage welcomePage;
 
-    protected UserRepresentation adminUser;
-
     private PropertiesConfiguration constantsProperties;
 
     private boolean resetTimeOffset;
@@ -158,8 +158,6 @@ public abstract class AbstractKeycloakTest {
         }
 
         getTestingClient();
-
-        adminUser = createAdminUserRepresentation();
 
         setDefaultPageUriParameters();
 
@@ -321,11 +319,6 @@ public abstract class AbstractKeycloakTest {
     public KeycloakTestingClient getTestingClient() {
         if (testingClient == null) {
             testingClient = testContext.getTestingClient();
-            if (testingClient == null) {
-                String authServerContextRoot = suiteContext.getAuthServerInfo().getContextRoot().toString();
-                testingClient = KeycloakTestingClient.getInstance(authServerContextRoot + "/auth");
-                testContext.setTestingClient(testingClient);
-            }
         }
         return testingClient;
     }
@@ -424,13 +417,6 @@ public abstract class AbstractKeycloakTest {
         assertThat(adminClient.realms().findAll().size(), is(equalTo(1)));
     }
 
-
-    private UserRepresentation createAdminUserRepresentation() {
-        UserRepresentation adminUserRep = new UserRepresentation();
-        adminUserRep.setUsername(ADMIN);
-        setPasswordFor(adminUserRep, ADMIN);
-        return adminUserRep;
-    }
 
     public void importRealm(RealmRepresentation realm) {
         log.debug("--importing realm: " + realm.getRealm());

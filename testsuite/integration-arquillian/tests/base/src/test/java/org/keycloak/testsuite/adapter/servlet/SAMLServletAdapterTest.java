@@ -1593,6 +1593,27 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
           });
     }
 
+    @Test
+    public void testDestinationUnset() throws Exception {
+        new SamlClientBuilder()
+          .navigateTo(employee2ServletPage.toString())
+          .processSamlResponse(Binding.POST).build()
+          .login().user(bburkeUser).build()
+          .processSamlResponse(Binding.POST)
+            .transformDocument(responseDoc -> {
+                responseDoc.getDocumentElement().removeAttribute("Destination");
+                return responseDoc;
+            })
+            .build()
+
+          .navigateTo(employee2ServletPage.toString())
+
+          .execute(r -> {
+              Assert.assertThat(r, statusCodeIsHC(Response.Status.OK));
+              Assert.assertThat(r, bodyHC(containsString("principal=")));
+          });
+    }
+
     // KEYCLOAK-4329
     @Test
     public void testEmptyKeyInfoElement() {
@@ -1703,8 +1724,8 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
 
         //printDocument(authnRequestMessage.getSOAPPart().getContent(), System.out);
 
-        Iterator<SOAPHeaderElement> it = authnRequestMessage.getSOAPHeader().<SOAPHeaderElement>getChildElements(new QName("urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp", "Request"));
-        SOAPHeaderElement ecpRequestHeader = it.next();
+        Iterator<javax.xml.soap.Node> it = authnRequestMessage.getSOAPHeader().<SOAPHeaderElement>getChildElements(new QName("urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp", "Request"));
+        SOAPHeaderElement ecpRequestHeader = (SOAPHeaderElement)it.next();
         NodeList idpList = ecpRequestHeader.getElementsByTagNameNS("urn:oasis:names:tc:SAML:2.0:protocol", "IDPList");
 
         Assert.assertThat("No IDPList returned from Service Provider", idpList.getLength(), is(1));
@@ -1790,13 +1811,13 @@ public class SAMLServletAdapterTest extends AbstractSAMLServletAdapterTest {
                 .get();
 
         SOAPMessage authnRequestMessage = MessageFactory.newInstance().createMessage(null, new ByteArrayInputStream(authnRequestResponse.readEntity(byte[].class)));
-        Iterator<SOAPHeaderElement> it = authnRequestMessage.getSOAPHeader().<SOAPHeaderElement>getChildElements(new QName("urn:liberty:paos:2003-08", "Request"));
+        Iterator<javax.xml.soap.Node> it = authnRequestMessage.getSOAPHeader().<SOAPHeaderElement>getChildElements(new QName("urn:liberty:paos:2003-08", "Request"));
 
         it.next();
 
         it = authnRequestMessage.getSOAPHeader().<SOAPHeaderElement>getChildElements(new QName("urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp", "Request"));
-        SOAPHeaderElement ecpRequestHeader = it.next();
-        NodeList idpList = ecpRequestHeader.getElementsByTagNameNS("urn:oasis:names:tc:SAML:2.0:protocol", "IDPList");
+        javax.xml.soap.Node ecpRequestHeader = it.next();
+        NodeList idpList = ((SOAPHeaderElement)ecpRequestHeader).getElementsByTagNameNS("urn:oasis:names:tc:SAML:2.0:protocol", "IDPList");
 
         Assert.assertThat("No IDPList returned from Service Provider", idpList.getLength(), is(1));
 

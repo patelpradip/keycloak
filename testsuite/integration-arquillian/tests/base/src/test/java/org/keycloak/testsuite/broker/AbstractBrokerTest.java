@@ -1,17 +1,14 @@
 package org.keycloak.testsuite.broker;
 
+import org.jboss.arquillian.graphene.page.Page;
 import org.junit.Test;
-
 import org.keycloak.admin.client.resource.AuthenticationManagementResource;
-import org.keycloak.admin.client.resource.IdentityProviderResource;
-import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.authentication.authenticators.broker.IdpCreateUserIfUniqueAuthenticatorFactory;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.utils.DefaultAuthenticationFlows;
 import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
 import org.keycloak.representations.idm.AuthenticatorConfigRepresentation;
-import org.keycloak.representations.idm.IdentityProviderMapperRepresentation;
 import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -24,10 +21,6 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.keycloak.models.utils.DefaultAuthenticationFlows.IDP_REVIEW_PROFILE_CONFIG_ALIAS;
 import static org.keycloak.testsuite.broker.BrokerTestTools.waitForPage;
-
-import org.jboss.arquillian.graphene.page.Page;
-
-import javax.ws.rs.core.Response;
 
 /**
  * Contains just few basic tests. This is good class to override if you're testing custom IDP configuration and you need

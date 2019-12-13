@@ -39,9 +39,14 @@ import org.keycloak.broker.provider.util.SimpleHttp;
 import org.keycloak.common.VerificationException;
 import org.keycloak.common.util.KeystoreUtil;
 import org.keycloak.constants.AdapterConstants;
+import org.keycloak.crypto.Algorithm;
+import org.keycloak.crypto.AsymmetricSignatureSignerContext;
 import org.keycloak.crypto.AsymmetricSignatureVerifierContext;
 import org.keycloak.crypto.KeyUse;
 import org.keycloak.crypto.KeyWrapper;
+import org.keycloak.crypto.ServerECDSASignatureSignerContext;
+import org.keycloak.crypto.ServerECDSASignatureVerifierContext;
+import org.keycloak.crypto.SignatureSignerContext;
 import org.keycloak.jose.jwk.JSONWebKeySet;
 import org.keycloak.jose.jwk.JWK;
 import org.keycloak.jose.jwk.JWKParser;
@@ -73,8 +78,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Collections;
 import java.util.HashMap;
@@ -443,7 +448,7 @@ public class OAuthClient {
             parameters.add(new BasicNameValuePair("username", username));
             parameters.add(new BasicNameValuePair("password", password));
             if (totp != null) {
-                parameters.add(new BasicNameValuePair("totp", totp));
+                parameters.add(new BasicNameValuePair("otp", totp));
 
             }
             if (clientSecret != null) {
@@ -710,13 +715,40 @@ public class OAuthClient {
             String kid = verifier.getHeader().getKeyId();
             String algorithm = verifier.getHeader().getAlgorithm().name();
             KeyWrapper key = getRealmPublicKey(realm, algorithm, kid);
-            AsymmetricSignatureVerifierContext verifierContext = new AsymmetricSignatureVerifierContext(key);
+            AsymmetricSignatureVerifierContext verifierContext;
+            switch (algorithm) {
+                case Algorithm.ES256:
+                case Algorithm.ES384:
+                case Algorithm.ES512:
+                    verifierContext = new ServerECDSASignatureVerifierContext(key);
+                    break;
+                default:
+                    verifierContext = new AsymmetricSignatureVerifierContext(key);
+            }
             verifier.verifierContext(verifierContext);
             verifier.verify();
             return verifier.getToken();
         } catch (VerificationException e) {
             throw new RuntimeException("Failed to decode token", e);
         }
+    }
+
+    public SignatureSignerContext createSigner(PrivateKey privateKey, String kid, String algorithm) {
+        KeyWrapper keyWrapper = new KeyWrapper();
+        keyWrapper.setAlgorithm(algorithm);
+        keyWrapper.setKid(kid);
+        keyWrapper.setPrivateKey(privateKey);
+        SignatureSignerContext signer;
+        switch (algorithm) {
+            case Algorithm.ES256:
+            case Algorithm.ES384:
+            case Algorithm.ES512:
+                signer = new ServerECDSASignatureSignerContext(keyWrapper);
+                break;
+            default:
+                signer = new AsymmetricSignatureSignerContext(keyWrapper);
+        }
+        return signer;
     }
 
     public String getClientId() {
