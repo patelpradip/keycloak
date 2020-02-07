@@ -21,5 +21,6 @@
     <version-overrides>  
         <version-override groupId="com.h2database" artifactId="h2" version="1.4.198"/>
         <version-override groupId="com.thoughtworks.xstream" artifactId="xstream" version="1.4.11.1"/>
+        <version-override groupId="org.apache.cxf" artifactId="cxf-rt-transports-http" version="3.3.5"/>
     </version-overrides>
 </server-provisioning>
