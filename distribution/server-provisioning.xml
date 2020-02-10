@@ -20,7 +20,10 @@
     </feature-packs>
     <version-overrides>  
         <version-override groupId="com.h2database" artifactId="h2" version="1.4.198"/>
+        <version-override groupId="org.yaml" artifactId="snakeyaml" version="1.25"/>
+        <version-override groupId="org.apache.cxf" artifactId="cxf-core" version="3.3.4"/>
         <version-override groupId="com.thoughtworks.xstream" artifactId="xstream" version="1.4.11.1"/>
         <version-override groupId="org.apache.cxf" artifactId="cxf-rt-transports-http" version="3.3.5"/>
+        <version-override groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.9.10.2"/>
     </version-overrides>
 </server-provisioning>
