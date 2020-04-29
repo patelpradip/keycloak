@@ -11,7 +11,7 @@ env:
   global:
     - MAVEN_SKIP_RC=true
     - MAVEN_OPTS="-Xms512m -Xmx1536m"
-    - THEME_VERSION=0.1
+    - THEME_VERSION=0.3
   matrix:
     - TESTS=unit
     - TESTS=server-group1
