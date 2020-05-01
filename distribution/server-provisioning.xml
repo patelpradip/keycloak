@@ -24,7 +24,7 @@
         <version-override groupId="org.apache.cxf" artifactId="cxf-core" version="3.3.4"/>
         <version-override groupId="com.thoughtworks.xstream" artifactId="xstream" version="1.4.11.1"/>
         <version-override groupId="org.apache.cxf" artifactId="cxf-rt-transports-http" version="3.3.5"/>
-        <!-- <version-override groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.10.3"/> -->
+        <version-override groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.10.2"/>
         <version-override groupId="io.netty" artifactId="netty-all" version="4.1.46.Final"/>
         <version-override groupId="org.apache.lucene" artifactId="lucene-queryparser" version="7.1.0"/>
          <version-override groupId="org.cryptacular" artifactId="cryptacular" version="1.2.4"/>
