@@ -19,6 +19,7 @@ package org.keycloak.authorization.authorization;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -81,6 +82,7 @@ import org.keycloak.services.CorsErrorResponseException;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.Urls;
 import org.keycloak.services.managers.AuthenticationManager;
+import org.keycloak.services.managers.AuthenticationSessionManager;
 import org.keycloak.services.resources.Cors;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
@@ -93,6 +95,7 @@ import org.keycloak.services.util.DefaultClientSessionContext;
 public class AuthorizationTokenService {
 
     public static final String CLAIM_TOKEN_FORMAT_ID_TOKEN = "http://openid.net/specs/openid-connect-core-1_0.html#IDToken";
+    public static final String CLAIM_TOKEN_FORMAT_JWT = "urn:ietf:params:oauth:token-type:jwt";
 
     private static final Logger logger = Logger.getLogger(AuthorizationTokenService.class);
     private static final String RESPONSE_MODE_DECISION = "decision";
@@ -102,12 +105,11 @@ public class AuthorizationTokenService {
 
     static {
         SUPPORTED_CLAIM_TOKEN_FORMATS = new HashMap<>();
-        SUPPORTED_CLAIM_TOKEN_FORMATS.put("urn:ietf:params:oauth:token-type:jwt", (request, authorization) -> {
+        SUPPORTED_CLAIM_TOKEN_FORMATS.put(CLAIM_TOKEN_FORMAT_JWT, (request, authorization) -> {
+            Map claims = request.getClaims();
             String claimToken = request.getClaimToken();
 
             if (claimToken != null) {
-                Map claims;
-                
                 try {
                     claims = JsonSerialization.readValue(Base64Url.decode(request.getClaimToken()), Map.class);
                     request.setClaims(claims);
@@ -115,20 +117,18 @@ public class AuthorizationTokenService {
                     throw new CorsErrorResponseException(request.getCors(), "invalid_request", "Invalid claims",
                             Status.BAD_REQUEST);
                 }
-
-                KeycloakIdentity identity;
-                
-                try {
-                    identity = new KeycloakIdentity(authorization.getKeycloakSession(),
-                            Tokens.getAccessToken(request.getSubjectToken(), authorization.getKeycloakSession()));
-                } catch (Exception cause) {
-                    throw new CorsErrorResponseException(request.getCors(), "unauthorized_client", "Invalid identity", Status.BAD_REQUEST);
-                }
-
-                return new DefaultEvaluationContext(identity, claims, authorization.getKeycloakSession());
             }
 
-            throw new CorsErrorResponseException(request.getCors(), "invalid_request", "Claim token can not be null", Status.BAD_REQUEST);
+            KeycloakIdentity identity;
+
+            try {
+                identity = new KeycloakIdentity(authorization.getKeycloakSession(),
+                        Tokens.getAccessToken(request.getSubjectToken(), authorization.getKeycloakSession()));
+            } catch (Exception cause) {
+                throw new CorsErrorResponseException(request.getCors(), "unauthorized_client", "Invalid identity", Status.BAD_REQUEST);
+            }
+
+            return new DefaultEvaluationContext(identity, claims, authorization.getKeycloakSession());
         });
         SUPPORTED_CLAIM_TOKEN_FORMATS.put(CLAIM_TOKEN_FORMAT_ID_TOKEN, (request, authorization) -> {
             KeycloakSession keycloakSession = authorization.getKeycloakSession();
@@ -283,7 +283,12 @@ public class AuthorizationTokenService {
             RootAuthenticationSessionModel rootAuthSession = keycloakSession.authenticationSessions().getRootAuthenticationSession(realm, userSessionModel.getId());
 
             if (rootAuthSession == null) {
-                rootAuthSession = keycloakSession.authenticationSessions().createRootAuthenticationSession(userSessionModel.getId(), realm);
+                if (userSessionModel.getUser().getServiceAccountClientLink() == null) {
+                    rootAuthSession = keycloakSession.authenticationSessions().createRootAuthenticationSession(userSessionModel.getId(), realm);
+                } else {
+                    // if the user session is associated with a service account
+                    rootAuthSession = new AuthenticationSessionManager(keycloakSession).createAuthenticationSession(realm, false);
+                }
             }
 
             AuthenticationSessionModel authSession = rootAuthSession.createAuthenticationSession(targetClient);
@@ -295,7 +300,7 @@ public class AuthorizationTokenService {
             AuthenticationManager.setClientScopesInSession(authSession);
             clientSessionCtx = TokenManager.attachAuthenticationSession(keycloakSession, userSessionModel, authSession);
         } else {
-            clientSessionCtx = DefaultClientSessionContext.fromClientSessionScopeParameter(clientSession);
+            clientSessionCtx = DefaultClientSessionContext.fromClientSessionScopeParameter(clientSession, keycloakSession);
         }
 
         TokenManager tokenManager = request.getTokenManager();
@@ -391,7 +396,7 @@ public class AuthorizationTokenService {
         String claimTokenFormat = request.getClaimTokenFormat();
 
         if (claimTokenFormat == null) {
-            claimTokenFormat = CLAIM_TOKEN_FORMAT_ID_TOKEN;
+            claimTokenFormat = CLAIM_TOKEN_FORMAT_JWT;
         }
 
         BiFunction<KeycloakAuthorizationRequest, AuthorizationProvider, EvaluationContext> evaluationContextProvider = SUPPORTED_CLAIM_TOKEN_FORMATS.get(claimTokenFormat);
@@ -459,7 +464,7 @@ public class AuthorizationTokenService {
                         requestedResources.add(ownerResource);
                     }
 
-                    if (!identity.isResourceServer()) {
+                    if (!identity.isResourceServer() || !identity.getId().equals(resourceServer.getId())) {
                         List<PermissionTicket> tickets = storeFactory.getPermissionTicketStore().findGranted(resourceName, identity.getId(), resourceServer.getId());
                         for (PermissionTicket permissionTicket : tickets) {
                             requestedResources.add(permissionTicket.getResource());
@@ -500,6 +505,11 @@ public class AuthorizationTokenService {
 
                     if (perm == null) {
                         perm = Permissions.createResourcePermissions(resource, requestedScopesModel, authorization, request);
+                        //if scopes were requested, check if the permission to evaluate resolves to any of the requested scopes.
+                        // if it is not the case, then the requested scope is invalid and we don't need to evaluate
+                        if (!requestedScopesModel.isEmpty() && perm.getScopes().isEmpty()) {
+                            continue;
+                        }
                         permissionsToEvaluate.put(resource.getId(), perm);
                         if (limit != null) {
                             limit.decrementAndGet();

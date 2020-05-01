@@ -50,6 +50,10 @@ public interface AuthenticationFlowContext extends AbstractAuthenticationFlowCon
      */
     void setUser(UserModel user);
 
+    List<AuthenticationSelectionOption> getAuthenticationSelections();
+
+    void setAuthenticationSelections(List<AuthenticationSelectionOption>  credentialAuthExecMap);
+
     /**
      * Gets the credential currently selected in this flow
      *

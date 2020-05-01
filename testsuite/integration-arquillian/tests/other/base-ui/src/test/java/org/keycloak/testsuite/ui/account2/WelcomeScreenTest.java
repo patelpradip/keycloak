@@ -43,7 +43,6 @@ public class WelcomeScreenTest extends AbstractAccountTest {
     public void loginLogoutTest() {
         accountWelcomeScreen.assertCurrent();
         accountWelcomeScreen.header().assertLogoutBtnVisible(false);
-        accountWelcomeScreen.header().assertLocaleVisible(false);
 
         // login
         accountWelcomeScreen.header().clickLoginBtn();
@@ -75,6 +74,12 @@ public class WelcomeScreenTest extends AbstractAccountTest {
     }
 
     @Test
+    public void clickLogoTest() {
+        accountWelcomeScreen.clickLogoImage();
+        accountWelcomeScreen.assertCurrent();
+    }
+
+    @Test
     public void accountSecurityTest() {
         // TODO rewrite this! (KEYCLOAK-12105)
 //        // change password link
@@ -93,11 +98,15 @@ public class WelcomeScreenTest extends AbstractAccountTest {
         loginToAccount();
         deviceActivityPage.assertCurrent();
 
+        // linked accounts nav item (this doesn't test welcome page directly but the sidebar after login)
+        personalInfoPage.navigateTo();
+        personalInfoPage.sidebar().assertNavNotPresent(LinkedAccountsPage.LINKED_ACCOUNTS_ID);
+
         // linked accounts link
         accountWelcomeScreen.navigateTo();
         accountWelcomeScreen.assertLinkedAccountsLinkVisible(false);
         // add simple IdP
-        testRealmResource().identityProviders().create(createIdentityProviderRepresentation("test-idp", "test-provider"));
+        testRealmResource().identityProviders().create(createIdentityProviderRepresentation("test-idp", "google"));
         // test link appeared
         accountWelcomeScreen.navigateTo();
         accountWelcomeScreen.clickLinkedAccountsLink();

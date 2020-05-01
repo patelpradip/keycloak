@@ -58,6 +58,7 @@ import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.protocol.oidc.representations.OIDCConfigurationRepresentation;
 import org.keycloak.protocol.oidc.utils.OIDCResponseType;
 import org.keycloak.representations.AccessToken;
+import org.keycloak.representations.AccessTokenResponse;
 import org.keycloak.representations.IDToken;
 import org.keycloak.representations.JsonWebToken;
 import org.keycloak.representations.RefreshToken;
@@ -69,6 +70,7 @@ import org.keycloak.util.JsonSerialization;
 import org.keycloak.util.TokenUtil;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Form;
@@ -89,6 +91,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.keycloak.testsuite.admin.Users.getPasswordOf;
+import static org.keycloak.testsuite.util.UIUtils.clickLink;
+import static org.keycloak.testsuite.util.URLUtils.removeDefaultPorts;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -107,7 +111,7 @@ public class OAuthClient {
 
     // Workaround, but many tests directly use system properties like OAuthClient.AUTH_SERVER_ROOT instead of taking the URL from suite context
     public static void updateURLs(String serverRoot) {
-        SERVER_ROOT = serverRoot;
+        SERVER_ROOT = removeDefaultPorts(serverRoot);
         AUTH_SERVER_ROOT = SERVER_ROOT + "/auth";
         APP_ROOT = AUTH_SERVER_ROOT + "/realms/master/app";
         APP_AUTH_ROOT = APP_ROOT + "/auth";
@@ -154,6 +158,8 @@ public class OAuthClient {
     private String codeChallenge;
     private String codeChallengeMethod;
     private String origin;
+
+    private Map<String, String> customParameters;
 
     private boolean openid = true;
 
@@ -220,6 +226,7 @@ public class OAuthClient {
         codeChallenge = null;
         codeChallengeMethod = null;
         origin = null;
+        customParameters = null;
         openid = true;
     }
 
@@ -229,6 +236,17 @@ public class OAuthClient {
 
     public AuthorizationEndpointResponse doLogin(String username, String password) {
         openLoginForm();
+        fillLoginForm(username, password);
+
+        return new AuthorizationEndpointResponse(this);
+    }
+
+    public AuthorizationEndpointResponse doLoginSocial(String brokerId, String username, String password) {
+        openLoginForm();
+        WaitUtils.waitForPageToLoad();
+
+        WebElement socialButton = findSocialButton(brokerId);
+        clickLink(socialButton);
         fillLoginForm(username, password);
 
         return new AuthorizationEndpointResponse(this);
@@ -430,7 +448,7 @@ public class OAuthClient {
         return introspectTokenWithClientCredential(clientId, clientSecret, "refresh_token", tokenToIntrospect);
     }
 
-    public AccessTokenResponse doGrantAccessTokenRequest(String clientSecret, String username,  String password) throws Exception {
+    public AccessTokenResponse doGrantAccessTokenRequest(String clientSecret, String username, String password) throws Exception {
         return doGrantAccessTokenRequest(realm, username, password, null, clientId, clientSecret);
     }
 
@@ -440,6 +458,11 @@ public class OAuthClient {
 
     public AccessTokenResponse doGrantAccessTokenRequest(String realm, String username, String password, String totp,
                                                          String clientId, String clientSecret) throws Exception {
+        return doGrantAccessTokenRequest(realm, username, password, totp, clientId, clientSecret, null);
+    }
+
+    public AccessTokenResponse doGrantAccessTokenRequest(String realm, String username, String password, String totp,
+                                                         String clientId, String clientSecret, String userAgent) throws Exception {
         try (CloseableHttpClient client = httpClient.get()) {
             HttpPost post = new HttpPost(getResourceOwnerPasswordCredentialGrantUrl(realm));
 
@@ -470,6 +493,10 @@ public class OAuthClient {
             }
             if (scope != null) {
                 parameters.add(new BasicNameValuePair(OAuth2Constants.SCOPE, scope));
+            }
+
+            if (userAgent != null) {
+                post.addHeader("User-Agent", userAgent);
             }
 
             UrlEncodedFormEntity formEntity;
@@ -608,6 +635,48 @@ public class OAuthClient {
         if (refreshToken != null) {
             parameters.add(new BasicNameValuePair(OAuth2Constants.REFRESH_TOKEN, refreshToken));
         }
+        if (clientId != null && clientSecret != null) {
+            String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
+            post.setHeader("Authorization", authorization);
+        } else if (clientId != null) {
+            parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ID, clientId));
+        }
+
+        UrlEncodedFormEntity formEntity;
+        try {
+            formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+        post.setEntity(formEntity);
+
+        return client.execute(post);
+    }
+
+    public CloseableHttpResponse doTokenRevoke(String token, String tokenTypeHint, String clientSecret) {
+        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
+            return doTokenRevoke(token, tokenTypeHint, clientSecret, client);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public CloseableHttpResponse doTokenRevoke(String token, String tokenTypeHint, String clientSecret,
+        CloseableHttpClient client) throws IOException {
+        HttpPost post = new HttpPost(getTokenRevocationUrl());
+
+        List<NameValuePair> parameters = new LinkedList<>();
+        if (token != null) {
+            parameters.add(new BasicNameValuePair("token", token));
+        }
+        if (tokenTypeHint != null) {
+            parameters.add(new BasicNameValuePair("token_type_hint", tokenTypeHint));
+        }
+
+        if (origin != null) {
+            post.addHeader("Origin", origin);
+        }
+
         if (clientId != null && clientSecret != null) {
             String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
             post.setHeader("Authorization", authorization);
@@ -873,7 +942,11 @@ public class OAuthClient {
         }
         if (codeChallengeMethod != null) {
             b.queryParam(OAuth2Constants.CODE_CHALLENGE_METHOD, codeChallengeMethod);
-        }  
+        }
+        if (customParameters != null) {
+            customParameters.keySet().stream().forEach(i -> b.queryParam(i, customParameters.get(i)));
+        }
+
         return b.build(realm).toString();
     }
 
@@ -900,6 +973,11 @@ public class OAuthClient {
 
     public LogoutUrlBuilder getLogoutUrl() {
         return new LogoutUrlBuilder();
+    }
+
+    public String getTokenRevocationUrl() {
+        UriBuilder b = OIDCLoginProtocolService.tokenRevocationUrl(UriBuilder.fromUri(baseUrl));
+        return b.build(realm).toString();
     }
 
     public String getResourceOwnerPasswordCredentialGrantUrl() {
@@ -1042,6 +1120,14 @@ public class OAuthClient {
         return this;
     }
 
+    public OAuthClient addCustomerParameter(String key, String value) {
+        if (customParameters == null) {
+            customParameters = new HashMap<>();
+        }
+        customParameters.put(key, value);
+        return this;
+    }
+
     public static class AuthorizationEndpointResponse {
 
         private boolean isRedirected;
@@ -1132,6 +1218,7 @@ public class OAuthClient {
         private String refreshToken;
         // OIDC Financial API Read Only Profile : scope MUST be returned in the response from Token Endpoint
         private String scope;
+        private String sessionState;
 
         private String error;
         private String errorDescription;
@@ -1163,6 +1250,7 @@ public class OAuthClient {
                     tokenType = (String) responseJson.get("token_type");
                     expiresIn = (Integer) responseJson.get("expires_in");
                     refreshExpiresIn = (Integer) responseJson.get("refresh_expires_in");
+                    sessionState = (String) responseJson.get("session_state");
 
                     // OIDC Financial API Read Only Profile : scope MUST be returned in the response from Token Endpoint
                     if (responseJson.containsKey(OAuth2Constants.SCOPE)) {
@@ -1220,6 +1308,10 @@ public class OAuthClient {
         // OIDC Financial API Read Only Profile : scope MUST be returned in the response from Token Endpoint
         public String getScope() {
             return scope;
+        }
+
+        public String getSessionState() {
+            return sessionState;
         }
 
         public Map<String, String> getHeaders() {
@@ -1294,6 +1386,11 @@ public class OAuthClient {
         return driver;
     }
 
+    private WebElement findSocialButton(String providerId) {
+        String id = "zocial-" + providerId;
+        return DroneUtils.getCurrentDriver().findElement(By.id(id));
+    }
+    
     private interface StateParamProvider {
 
         String getState();

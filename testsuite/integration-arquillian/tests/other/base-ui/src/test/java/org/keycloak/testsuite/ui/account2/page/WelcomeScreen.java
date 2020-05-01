@@ -57,6 +57,8 @@ public class WelcomeScreen extends AbstractAccountPage {
     private WebElement myResourcesCard;
     @FindBy(xpath = "//*[@id='landingMyResourcesLink']/a")
     private WebElement myResourcesLink;
+    @FindBy(id = "landingLogo")
+    private WebElement logoLink;
 
     @FindBy(id = "landingWelcomeMessage")
     private WebElement welcomeMessage; // used only for i18n testing
@@ -70,8 +72,8 @@ public class WelcomeScreen extends AbstractAccountPage {
     }
 
     @Override
-    public UriBuilder createUriBuilder() {
-        UriBuilder uriBuilder = super.createUriBuilder();
+    public UriBuilder getUriBuilder() {
+        UriBuilder uriBuilder = super.getUriBuilder();
         if (referrer != null && referrerUri != null) {
             uriBuilder.queryParam("referrer", referrer);
             uriBuilder.queryParam("referrer_uri", referrerUri);
@@ -81,6 +83,10 @@ public class WelcomeScreen extends AbstractAccountPage {
 
     public WelcomeScreenHeader header() {
         return header;
+    }
+
+    public void clickLogoImage() {
+        clickLink(logoLink);
     }
 
     public void clickPersonalInfoLink() {

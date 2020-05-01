@@ -57,9 +57,27 @@ public interface UserCredentialManager extends UserCredentialStore {
      *
      * @param realm
      * @param user
+     * @return true if credential was successfully updated by UserStorage or any CredentialInputUpdater
+     */
+    boolean updateCredential(RealmModel realm, UserModel user, CredentialInput input);
+
+    /**
+     * Creates a credential from the credentialModel, by looping through the providers to find a match for the type
+     * @param realm
+     * @param user
+     * @param model
      * @return
      */
-    void updateCredential(RealmModel realm, UserModel user, CredentialInput input);
+    CredentialModel createCredentialThroughProvider(RealmModel realm, UserModel user, CredentialModel model);
+
+    /**
+     * Updates the credential label and invalidates the cache for the user.
+     * @param realm
+     * @param user
+     * @param credentialId
+     * @param userLabel
+     */
+    void updateCredentialLabel(RealmModel realm, UserModel user, String credentialId, String userLabel);
 
     /**
      * Creates a credential from the credentialModel, by looping through the providers to find a match for the type
@@ -133,4 +151,12 @@ public interface UserCredentialManager extends UserCredentialStore {
      * @return
      */
     CredentialValidationOutput authenticate(KeycloakSession session, RealmModel realm, CredentialInput input);
+
+    /**
+     * Return credential types, which are provided by the user storage where user is stored. Returned values can contain for example "password", "otp" etc.
+     * This will always return empty list for "local" users, which are not backed by any user storage
+     *
+     * @return
+     */
+    List<String> getConfiguredUserStorageCredentialTypes(RealmModel realm, UserModel user);
 }
