@@ -54,7 +54,6 @@ public interface AuthenticationFlowContext extends AbstractAuthenticationFlowCon
 
     void setAuthenticationSelections(List<AuthenticationSelectionOption>  credentialAuthExecMap);
 
-
     /**
      * Clear the user from the flow.
      */
