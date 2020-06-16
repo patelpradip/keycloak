@@ -80,24 +80,6 @@ public interface UserCredentialManager extends UserCredentialStore {
     void updateCredentialLabel(RealmModel realm, UserModel user, String credentialId, String userLabel);
 
     /**
-     * Creates a credential from the credentialModel, by looping through the providers to find a match for the type
-     * @param realm
-     * @param user
-     * @param model
-     * @return
-     */
-    CredentialModel createCredentialThroughProvider(RealmModel realm, UserModel user, CredentialModel model);
-
-    /**
-     * Updates the credential label and invalidates the cache for the user.
-     * @param realm
-     * @param user
-     * @param credentialId
-     * @param userLabel
-     */
-    void updateCredentialLabel(RealmModel realm, UserModel user, String credentialId, String userLabel);
-
-    /**
      * Calls disableCredential on UserStorageProvider and UserFederationProviders first, then loop through
      * each CredentialProvider.
      *
