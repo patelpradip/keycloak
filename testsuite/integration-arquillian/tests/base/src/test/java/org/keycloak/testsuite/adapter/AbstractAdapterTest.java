@@ -48,6 +48,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+
+import static org.keycloak.testsuite.arquillian.AppServerTestEnricher.APP_SERVER_SSL_REQUIRED;
 import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_SSL_REQUIRED;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 
@@ -64,12 +66,14 @@ public abstract class AbstractAdapterTest extends AbstractAuthTest {
     @Page
     protected AppServerContextRoot appServerContextRootPage;
 
-    protected static final boolean APP_SERVER_SSL_REQUIRED = Boolean.parseBoolean(System.getProperty("app.server.ssl.required", "false"));
     protected static final String APP_SERVER_CONTAINER = System.getProperty("app.server", "");
 
     public static final String JBOSS_DEPLOYMENT_STRUCTURE_XML = "jboss-deployment-structure.xml";
     public static final URL jbossDeploymentStructure = AbstractServletsAdapterTest.class
             .getResource("/adapter-test/" + JBOSS_DEPLOYMENT_STRUCTURE_XML);
+    public static final String UNDERTOW_HANDLERS_CONF = "undertow-handlers.conf";
+    public static final URL undertowHandlersConf = AbstractServletsAdapterTest.class
+            .getResource("/adapter-test/samesite/undertow-handlers.conf");
     public static final String TOMCAT_CONTEXT_XML = "context.xml";
     public static final URL tomcatContext = AbstractServletsAdapterTest.class
             .getResource("/adapter-test/" + TOMCAT_CONTEXT_XML);
@@ -198,7 +202,7 @@ public abstract class AbstractAdapterTest extends AbstractAuthTest {
         if (realm.getClients() != null) {
             for (ClientRepresentation client : realm.getClients()) {
                 if (client.getProtocol() != null && client.getProtocol().equals("saml")) {
-                    log.info("Modifying attributes of SAML client: " + client.getClientId());
+                    log.debug("Modifying attributes of SAML client: " + client.getClientId());
                     for (Map.Entry<String, String> entry : client.getAttributes().entrySet()) {
                         client.getAttributes().put(entry.getKey(), entry.getValue().replaceAll(regex, replacement));
                     }
@@ -211,7 +215,7 @@ public abstract class AbstractAdapterTest extends AbstractAuthTest {
         if (realm.getClients() != null) {
             for (ClientRepresentation client : realm.getClients()) {
                 if (client.getProtocol() != null && client.getProtocol().equals("saml")) {
-                    log.info("Modifying master URL of SAML client: " + client.getClientId());
+                    log.debug("Modifying master URL of SAML client: " + client.getClientId());
                     String masterUrl = client.getAdminUrl();
                     if (masterUrl == null) {
                         masterUrl = client.getBaseUrl();

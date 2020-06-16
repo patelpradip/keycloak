@@ -234,7 +234,7 @@ public class MSADUserAccountControlStorageMapper extends AbstractLDAPStorageMapp
                     control.add(UserAccountControl.ACCOUNTDISABLE);
                 }
 
-                ensureTransactionStarted();
+                markUpdatedAttributeInTransaction(LDAPConstants.ENABLED);
 
                 updateUserAccountControl(false, ldapUser, control);
             }
@@ -259,7 +259,7 @@ public class MSADUserAccountControlStorageMapper extends AbstractLDAPStorageMapp
 
                 ldapUser.setSingleAttribute(LDAPConstants.PWD_LAST_SET, "0");
 
-                ensureTransactionStarted();
+                markUpdatedRequiredActionInTransaction(action);
             }
         }
 
@@ -286,7 +286,7 @@ public class MSADUserAccountControlStorageMapper extends AbstractLDAPStorageMapp
 
                     ldapUser.setSingleAttribute(LDAPConstants.PWD_LAST_SET, "-1");
 
-                    ensureTransactionStarted();
+                    markUpdatedRequiredActionInTransaction(action);
                 }
             }
         }
