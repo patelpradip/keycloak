@@ -19,13 +19,13 @@
         <feature-pack groupId="org.keycloak" artifactId="keycloak-server-feature-pack" version="${project.version}"/>
     </feature-packs>
     <version-overrides>
-        <version-override groupId="com.h2database" artifactId="h2" version="1.4.200"/>
+        <version-override groupId="com.h2database" artifactId="h2" version="1.4.193.redhat-2"/>
         <version-override groupId="io.undertow" artifactId="undertow-core" version="2.1.1.Final"/>
         <version-override groupId="org.apache.lucene" artifactId="lucene-queryparser" version="7.1.0"/>
         <version-override groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.9.13-atlassian-5"/>
         <version-override groupId="org.jboss.resteasy" artifactId="resteasy-jaxrs" version="3.12.0.Final"/>
         <version-override groupId="org.jboss.resteasy" artifactId="resteasy-core" version="3.12.0.Final"/>
-<!--        <version-override groupId="org.bouncycastle" artifactId="bcprov-jdk15on" version="1.65"/>-->
+        <version-override groupId="org.bouncycastle" artifactId="bcprov-jdk15on" version="1.65.01"/>
         <version-override groupId="org.slf4j" artifactId="slf4j-ext" version="1.8.0-beta2"/>
         <version-override groupId="org.hibernate.validator" artifactId="hibernate-validator" version="6.0.19.Final"/>
         <version-override groupId="org.picketlink" artifactId="picketlink-common" version="2.7.1.Final"/>
