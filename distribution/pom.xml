@@ -55,6 +55,20 @@
                 <enabled>false</enabled>
             </snapshots>
         </repository>
+        <!-- Needed for org.codehaus.jackson:jackson-mapper-asl:1.9.13-atlassian-5 -->
+        <repository>
+            <id>atlassian-public</id>
+            <url>https://packages.atlassian.com/mvn/maven-external/</url>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>never</updatePolicy>
+                <checksumPolicy>warn</checksumPolicy>
+            </snapshots>
+            <releases>
+                <enabled>true</enabled>
+                <checksumPolicy>warn</checksumPolicy>
+            </releases>
+        </repository>
     </repositories>
 
     <profiles>
