@@ -25,7 +25,8 @@
         <version-override groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.9.13-atlassian-5"/>
         <version-override groupId="org.jboss.resteasy" artifactId="resteasy-jaxrs" version="3.12.0.Final"/>
         <version-override groupId="org.jboss.resteasy" artifactId="resteasy-core" version="3.12.0.Final"/>
-        <version-override groupId="org.bouncycastle" artifactId="bcprov-jdk15on" version="1.63"/>
+        <version-override groupId="org.bouncycastle" artifactId="bcprov-jdk15on" version="1.64"/>
+        <version-override groupId="org.bouncycastle" artifactId="bcpkix-jdk15on" version="1.64"/>
         <version-override groupId="org.slf4j" artifactId="slf4j-ext" version="1.8.0-beta2"/>
         <version-override groupId="org.hibernate.validator" artifactId="hibernate-validator" version="6.0.19.Final"/>
         <version-override groupId="org.picketlink" artifactId="picketlink-common" version="2.7.1.Final"/>
