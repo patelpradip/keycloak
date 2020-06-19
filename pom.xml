@@ -1501,8 +1501,8 @@
                     <version>${nexus.staging.plugin.version}</version>
                     <extensions>true</extensions>
                     <configuration>
-                        <nexusUrl>https://repository.jboss.org/nexus</nexusUrl>
-                        <serverId>jboss-releases-repository</serverId>
+                        <nexusUrl>https://artifacts.alfresco.com/nexus</nexusUrl>
+                        <serverId>alfresco-public</serverId>
                     </configuration>
                 </plugin>
                 <plugin>
