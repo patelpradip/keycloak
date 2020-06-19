@@ -60,6 +60,7 @@
                     <configuration>
                         <nexusUrl>https://artifacts.alfresco.com/nexus</nexusUrl>
                         <serverId>alfresco-public</serverId>
+                        <stagingProfileId>261a04078c54e5</stagingProfileId>
                     </configuration>
                 </plugin>
             </plugins>
