@@ -26,7 +26,7 @@
 
     <groupId>org.keycloak.bom</groupId>
     <artifactId>keycloak-bom-parent</artifactId>
-    <version>11.0.0-SNAPSHOT</version>
+    <version>11.0.0-alfresco-001</version>
 
     <packaging>pom</packaging>
 
@@ -58,8 +58,9 @@
                     <version>1.6.5</version>
                     <extensions>true</extensions>
                     <configuration>
-                        <nexusUrl>https://repository.jboss.org/nexus</nexusUrl>
-                        <serverId>jboss-releases-repository</serverId>
+                        <nexusUrl>https://artifacts.alfresco.com/nexus</nexusUrl>
+                        <serverId>alfresco-public</serverId>
+                        <stagingProfileId>261a04078c54e5</stagingProfileId>
                     </configuration>
                 </plugin>
             </plugins>
