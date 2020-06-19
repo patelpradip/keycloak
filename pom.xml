@@ -184,16 +184,15 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:git://github.com/keycloak/keycloak.git</connection>
-        <developerConnection>scm:git:git@github.com:keycloak/keycloak.git</developerConnection>
-        <url>https://github.com/keycloak/keycloak/tree/master/</url>
+        <connection>scm:git:git://github.com/Alfresco/keycloak.git</connection>
+        <developerConnection>scm:git:git@github.com:Alfresco/keycloak.git</developerConnection>
+        <url>https://github.com/Alfresco/keycloak/tree/master/</url>
     </scm>
 
     <distributionManagement>
         <repository>
-            <id>jboss-releases-repository</id>
-            <name>JBoss Releases Repository</name>
-            <url>https://repository.jboss.org/nexus/service/local/staging/deploy/maven2/</url>
+            <id>alfresco-public</id>
+            <url>https://artifacts.alfresco.com/nexus/content/repositories/releases</url>
         </repository>
     </distributionManagement>
 
