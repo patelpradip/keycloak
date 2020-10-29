@@ -18,4 +18,15 @@
     <feature-packs>
         <feature-pack groupId="org.keycloak" artifactId="keycloak-server-feature-pack" version="${project.version}"/>
     </feature-packs>
+    <version-overrides>
+        <version-override groupId="com.h2database" artifactId="h2" version="1.4.200"/>
+        <version-override groupId="io.undertow" artifactId="undertow-core" version="2.2.0.Final"/>
+        <version-override groupId="org.apache.httpcomponents"  artifactId="httpclient" version="4.5.13"/>
+        <version-override groupId="org.apache.lucene" artifactId="lucene-queryparser" version="7.1.0"/>
+        <version-override groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.9.14.jdk17-redhat-00001"/>
+        <version-override groupId="org.hibernate" artifactId="hibernate-core" version="5.4.18.Final"/>
+        <version-override groupId="org.picketlink" artifactId="picketlink-common" version="2.7.1.Final"/>
+        <version-override groupId="org.picketlink" artifactId="picketlink-federation" version="2.7.1.Final"/>
+        <version-override groupId="org.wildfly.core" artifactId="wildfly-embedded" version="13.0.1.Final"/>
+    </version-overrides>
 </server-provisioning>
