@@ -47,7 +47,6 @@ import org.keycloak.testsuite.Assert;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.admin.AbstractAdminTest;
 import org.keycloak.testsuite.admin.ApiUtil;
-import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.auth.page.AuthRealm;
@@ -72,6 +71,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -79,6 +79,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -298,7 +299,7 @@ public class RealmTest extends AbstractAdminTest {
     public void loginAfterRemoveRealm() {
         realm.remove();
 
-        try (Keycloak client = Keycloak.getInstance(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth", "master", "admin", "admin", Constants.ADMIN_CLI_CLIENT_ID, TLSUtils.initializeTLS())) {
+        try (Keycloak client = Keycloak.getInstance(getAuthServerContextRoot() + "/auth", "master", "admin", "admin", Constants.ADMIN_CLI_CLIENT_ID, TLSUtils.initializeTLS())) {
             client.serverInfo().getInfo();
         }
 
@@ -317,12 +318,12 @@ public class RealmTest extends AbstractAdminTest {
         realm1 = adminClient.realms().realm("test-immutable").toRepresentation();
         realm1.setRealm("test-immutable-old");
         adminClient.realms().realm("test-immutable").update(realm1);
-        realm1 = adminClient.realms().realm("test-immutable-old").toRepresentation();
+        assertThat(adminClient.realms().realm("test-immutable-old").toRepresentation(), notNullValue());
 
         RealmRepresentation realm2 = new RealmRepresentation();
         realm2.setRealm("test-immutable");
         adminClient.realms().create(realm2);
-        realm2 = adminClient.realms().realm("test-immutable").toRepresentation();
+        assertThat(adminClient.realms().realm("test-immutable").toRepresentation(), notNullValue());
 
         adminClient.realms().realm("test-immutable-old").remove();
         adminClient.realms().realm("test-immutable").remove();

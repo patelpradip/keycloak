@@ -18,6 +18,7 @@ package org.keycloak.services.resources;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.jboss.logging.Logger;
+import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.keycloak.Config;
 import org.keycloak.common.util.Resteasy;
 import org.keycloak.config.ConfigProviderFactory;
@@ -43,7 +44,6 @@ import org.keycloak.services.DefaultKeycloakSessionFactory;
 import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.error.KeycloakErrorHandler;
 import org.keycloak.services.filters.KeycloakSecurityHeadersFilter;
-import org.keycloak.services.filters.KeycloakTransactionCommitter;
 import org.keycloak.services.managers.ApplianceBootstrap;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.services.managers.UserStorageSyncManager;
@@ -89,7 +89,7 @@ public class KeycloakApplication extends Application {
     protected Set<Object> singletons = new HashSet<Object>();
     protected Set<Class<?>> classes = new HashSet<Class<?>>();
 
-    protected KeycloakSessionFactory sessionFactory;
+    protected static KeycloakSessionFactory sessionFactory;
 
     public KeycloakApplication() {
 
@@ -100,9 +100,6 @@ public class KeycloakApplication extends Application {
 
             loadConfig();
 
-            Resteasy.pushDefaultContextObject(KeycloakApplication.class, this);
-            Resteasy.pushContext(KeycloakApplication.class, this); // for injection
-
             singletons.add(new RobotsResource());
             singletons.add(new RealmsResource());
             singletons.add(new AdminRoot());
@@ -110,10 +107,9 @@ public class KeycloakApplication extends Application {
             classes.add(JsResource.class);
 
             classes.add(KeycloakSecurityHeadersFilter.class);
-            classes.add(KeycloakTransactionCommitter.class);
             classes.add(KeycloakErrorHandler.class);
 
-            singletons.add(new ObjectMapperResolver(Boolean.parseBoolean(System.getProperty("keycloak.jsonPrettyPrint", "false"))));
+            singletons.add(new ObjectMapperResolver());
             singletons.add(new WelcomeResource());
 
             platform.onStartup(this::startup);
@@ -165,7 +161,6 @@ public class KeycloakApplication extends Application {
         sessionFactory.publish(new PostMigrationEvent());
 
         setupScheduledTasks(sessionFactory);
-
     }
 
     protected void shutdown() {
@@ -281,7 +276,7 @@ public class KeycloakApplication extends Application {
         }
     }
 
-    public KeycloakSessionFactory getSessionFactory() {
+    public static KeycloakSessionFactory getSessionFactory() {
         return sessionFactory;
     }
 

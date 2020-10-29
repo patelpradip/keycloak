@@ -74,38 +74,6 @@
         }
     }
 
-    function toKeycloakPromise(promise) {
-        promise.__proto__ = KeycloakPromise.prototype;
-        return promise;
-    }
-
-    function KeycloakPromise(executor) {
-        return toKeycloakPromise(new Promise(executor));
-    }
-
-    KeycloakPromise.prototype = Object.create(Promise.prototype);
-    KeycloakPromise.prototype.constructor = KeycloakPromise;
-
-    KeycloakPromise.prototype.success = function(callback) {
-        logPromiseDeprecation();
-
-        var promise = this.then(function handleSuccess(value) {
-            callback(value);
-        });
-
-        return toKeycloakPromise(promise);
-    };
-
-    KeycloakPromise.prototype.error = function(callback) {
-        logPromiseDeprecation();
-
-        var promise = this.catch(function handleError(error) {
-            callback(error);
-        });
-
-        return toKeycloakPromise(promise);
-    };
-
     function Keycloak (config) {
         if (!(this instanceof Keycloak)) {
             return new Keycloak(config);
@@ -203,6 +171,12 @@
 
                 if (initOptions.silentCheckSsoRedirectUri) {
                     kc.silentCheckSsoRedirectUri = initOptions.silentCheckSsoRedirectUri;
+                }
+
+                if (typeof initOptions.silentCheckSsoFallback === 'boolean') {
+                    kc.silentCheckSsoFallback = initOptions.silentCheckSsoFallback;
+                } else {
+                    kc.silentCheckSsoFallback = true;
                 }
 
                 if (initOptions.pkceMethod) {
@@ -356,7 +330,28 @@
                 }
             }
 
-            configPromise.then(processInit);
+            function domReady() {
+                var promise = createPromise();
+
+                var checkReadyState = function () {
+                    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+                        document.removeEventListener('readystatechange', checkReadyState);
+                        promise.setSuccess();
+                    }
+                }
+                document.addEventListener('readystatechange', checkReadyState);
+
+                checkReadyState(); // just in case the event was already fired and we missed it (in case the init is done later than at the load time, i.e. it's done from code)
+
+                return promise.promise;
+            }
+
+            configPromise.then(function () {
+                domReady().then(check3pCookiesSupported).then(processInit)
+                .catch(function() {
+                    promise.setError();
+                });
+            });
             configPromise.catch(function() {
                 promise.setError();
             });
@@ -846,6 +841,13 @@
                             }
                             return src;
                         },
+                        thirdPartyCookiesIframe: function() {
+                            var src = getRealmUrl() + '/protocol/openid-connect/3p-cookies/step1.html';
+                            if (kc.iframeVersion) {
+                                src = src + '?version=' + kc.iframeVersion;
+                            }
+                            return src;
+                        },
                         register: function() {
                             return getRealmUrl() + '/protocol/openid-connect/registrations';
                         },
@@ -1035,8 +1037,8 @@
         function decodeToken(str) {
             str = str.split('.')[1];
 
-            str = str.replace('/-/g', '+');
-            str = str.replace('/_/g', '/');
+            str = str.replace(/-/g, '+');
+            str = str.replace(/_/g, '/');
             switch (str.length % 4) {
                 case 0:
                     break;
@@ -1174,10 +1176,31 @@
                     p.reject(result);
                 }
             };
-            p.promise = new KeycloakPromise(function(resolve, reject) {
+            p.promise = new Promise(function(resolve, reject) {
                 p.resolve = resolve;
                 p.reject = reject;
             });
+
+            p.promise.success = function(callback) {
+                logPromiseDeprecation();
+
+                this.then(function handleSuccess(value) {
+                    callback(value);
+                });
+
+                return this;
+            }
+
+            p.promise.error = function(callback) {
+                logPromiseDeprecation();
+
+                this.catch(function handleError(error) {
+                    callback(error);
+                });
+
+                return this;
+            }
+
             return p;
         }
 
@@ -1269,6 +1292,45 @@
                 if (loginIframe.callbackList.length == 1) {
                     loginIframe.iframe.contentWindow.postMessage(msg, origin);
                 }
+            } else {
+                promise.setSuccess();
+            }
+
+            return promise.promise;
+        }
+
+        function check3pCookiesSupported() {
+            var promise = createPromise();
+
+            if (loginIframe.enable || kc.silentCheckSsoRedirectUri) {
+                var iframe = document.createElement('iframe');
+                iframe.setAttribute('src', kc.endpoints.thirdPartyCookiesIframe());
+                iframe.setAttribute('title', 'keycloak-3p-check-iframe' );
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+
+                var messageCallback = function(event) {
+                    if (iframe.contentWindow !== event.source) {
+                        return;
+                    }
+
+                    if (event.data !== "supported" && event.data !== "unsupported") {
+                        promise.setError();
+                    } else if (event.data === "unsupported") {
+                        loginIframe.enable = false;
+                        if (kc.silentCheckSsoFallback) {
+                            kc.silentCheckSsoRedirectUri = false;
+                        }
+                        logWarn("[KEYCLOAK] 3rd party cookies aren't supported by this browser. checkLoginIframe and " +
+                            "silent check-sso are not available.")
+                    }
+
+                    document.body.removeChild(iframe);
+                    window.removeEventListener("message", messageCallback);
+                    promise.setSuccess();
+                };
+
+                window.addEventListener('message', messageCallback, false);
             } else {
                 promise.setSuccess();
             }

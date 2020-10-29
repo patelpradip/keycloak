@@ -80,32 +80,34 @@ angular.element(document).ready(function () {
         location.reload();
     }
 
-    keycloakAuth.init({ onLoad: 'login-required', pkceMethod: 'S256' }).success(function () {
+    auth.refreshPermissions = function(success, error) {
+        whoAmI(function(data) {
+            auth.user = data;
+            auth.loggedIn = true;
+            auth.hasAnyAccess = hasAnyAccess(data);
+
+            success();
+        }, function() {
+            error();
+        });
+    };
+
+    module.factory('Auth', function () {
+        return auth;
+    });
+
+    keycloakAuth.init({ onLoad: 'login-required', pkceMethod: 'S256' }).then(function () {
         auth.authz = keycloakAuth;
 
-        if (auth.authz.idTokenParsed.locale) {
-            locale = auth.authz.idTokenParsed.locale;
-        }
+        whoAmI(function(data) {
+            auth.user = data;
+            auth.loggedIn = true;
+            auth.hasAnyAccess = hasAnyAccess(data);
+            locale = auth.user.locale || locale;
 
-        auth.refreshPermissions = function(success, error) {
-            whoAmI(function(data) {
-                auth.user = data;
-                auth.loggedIn = true;
-                auth.hasAnyAccess = hasAnyAccess(data);
+            loadResourceBundle(function(data) {
+                resourceBundle = data;
 
-                success();
-            }, function() {
-                error();
-            });
-        };
-
-        loadResourceBundle(function(data) {
-            resourceBundle = data;
-
-            auth.refreshPermissions(function () {
-                module.factory('Auth', function () {
-                    return auth;
-                });
                 var injector = angular.bootstrap(document, ["keycloak"]);
 
                 injector.get('$translate')('consoleTitle').then(function (consoleTitle) {
@@ -115,7 +117,7 @@ angular.element(document).ready(function () {
         });
 
         loadSelect2Localization();
-    }).error(function () {
+    }).catch(function () {
         window.location.reload();
     });
 });
@@ -126,12 +128,12 @@ module.factory('authInterceptor', function($q, Auth) {
             if (!config.url.match(/.html$/)) {
                 var deferred = $q.defer();
                 if (Auth.authz.token) {
-                    Auth.authz.updateToken(5).success(function () {
+                    Auth.authz.updateToken(5).then(function () {
                         config.headers = config.headers || {};
                         config.headers.Authorization = 'Bearer ' + Auth.authz.token;
 
                         deferred.resolve(config);
-                    }).error(function () {
+                    }).catch(function () {
                         location.reload();
                     });
                 }

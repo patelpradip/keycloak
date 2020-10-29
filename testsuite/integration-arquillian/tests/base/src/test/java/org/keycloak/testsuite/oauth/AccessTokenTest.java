@@ -45,7 +45,6 @@ import org.keycloak.events.Errors;
 import org.keycloak.jose.jws.JWSHeader;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.jose.jws.JWSInputException;
-import org.keycloak.models.Constants;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -66,7 +65,6 @@ import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.ActionURIUtils;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.admin.ApiUtil;
-import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 import org.keycloak.testsuite.util.ClientBuilder;
 import org.keycloak.testsuite.util.ClientManager;
 import org.keycloak.testsuite.util.OAuthClient;
@@ -106,7 +104,7 @@ import static org.keycloak.testsuite.admin.AbstractAdminTest.loadJson;
 import static org.keycloak.testsuite.admin.ApiUtil.findClientByClientId;
 import static org.keycloak.testsuite.admin.ApiUtil.findUserByUsername;
 import static org.keycloak.testsuite.admin.ApiUtil.findUserByUsernameId;
-import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_SSL_REQUIRED;
+import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_SSL_REQUIRED;
 import static org.keycloak.testsuite.util.OAuthClient.AUTH_SERVER_ROOT;
 import static org.keycloak.testsuite.util.ProtocolMapperUtil.createRoleNameMapper;
 import static org.keycloak.testsuite.Assert.assertExpiration;
@@ -194,7 +192,7 @@ public class AccessTokenTest extends AbstractKeycloakTest {
         Assert.assertThat(response.getExpiresIn(), allOf(greaterThanOrEqualTo(250), lessThanOrEqualTo(300)));
         Assert.assertThat(response.getRefreshExpiresIn(), allOf(greaterThanOrEqualTo(1750), lessThanOrEqualTo(1800)));
 
-        assertEquals("bearer", response.getTokenType());
+        assertEquals("Bearer", response.getTokenType());
 
         String expectedKid = oauth.doCertsRequest("test").getKeys()[0].getKeyId();
 
@@ -1309,7 +1307,7 @@ public class AccessTokenTest extends AbstractKeycloakTest {
 
         assertEquals(200, response.getStatusCode());
 
-        assertEquals("bearer", response.getTokenType());
+        assertEquals("Bearer", response.getTokenType());
 
         JWSHeader header = new JWSInput(response.getAccessToken()).getHeader();
         assertEquals(expectedAccessAlg, header.getAlgorithm().name());

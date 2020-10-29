@@ -41,8 +41,8 @@ import static org.junit.Assert.assertTrue;
 import static org.keycloak.representations.idm.CredentialRepresentation.PASSWORD;
 import static org.keycloak.testsuite.admin.ApiUtil.createUserAndResetPasswordWithAdminClient;
 import static org.keycloak.testsuite.admin.Users.setPasswordFor;
-import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_PORT;
-import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_SSL_REQUIRED;
+import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_PORT;
+import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_SSL_REQUIRED;
 import static org.keycloak.testsuite.auth.page.AuthRealm.TEST;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWith;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWithLoginUrlOf;
@@ -146,7 +146,7 @@ public class LoginSettingsTest extends AbstractRealmTest {
         testAccountPage.signOut();
         log.debug("edited");
         
-        log.info("log in with edited username");
+        log.info("sign in with edited username");
         assertCurrentUrlStartsWithLoginUrlOf(testAccountPage);
         testRealmLoginPage.form().login(NEW_USERNAME, PASSWORD);
         assertCurrentUrlStartsWith(testAccountPage);
@@ -268,7 +268,7 @@ public class LoginSettingsTest extends AbstractRealmTest {
         String id = createUserAndResetPasswordWithAdminClient(testRealmResource(), newUser, PASSWORD);
         newUser.setId(id);
         
-        log.info("log in as new user");
+        log.info("sign in as new user");
         testAccountPage.navigateTo();        
         testRealmLoginPage.form().login(newUser);
         assertCurrentUrlStartsWith(testAccountPage);

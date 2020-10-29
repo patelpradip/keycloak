@@ -19,12 +19,13 @@ import {Route, Switch} from 'react-router-dom';
 import {NavItem, NavExpandable} from '@patternfly/react-core';
 import {Msg} from './widgets/Msg';
 import {PageNotFound} from './content/page-not-found/PageNotFound';
+import { ForbiddenPage } from './content/forbidden-page/ForbiddenPage';
 
 export interface ContentItem {
     id?: string;
     label: string;
     labelParams?: string[];
-    hidden?: boolean;
+    hidden?: string;
     groupId: string; // computed value
     itemId: string; // computed value
 };
@@ -167,6 +168,7 @@ export function makeRoutes(): React.ReactNode {
 
     return (<Switch>
                 {routes}
+                <Route path="/forbidden" component={ForbiddenPage}/>
                 <Route component={PageNotFound}/>
             </Switch>);
 }

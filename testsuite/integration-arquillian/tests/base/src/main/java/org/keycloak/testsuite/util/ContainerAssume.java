@@ -22,7 +22,7 @@ import org.junit.Assume;
 import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 
 import static org.keycloak.testsuite.arquillian.AppServerTestEnricher.APP_SERVER_SSL_REQUIRED;
-import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_SSL_REQUIRED;
+import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_SSL_REQUIRED;
 
 public class ContainerAssume {
 
@@ -54,7 +54,11 @@ public class ContainerAssume {
     }
 
     public static void assumeAppServerSSL() {
-        Assume.assumeTrue("Only works with the SSL configured", APP_SERVER_SSL_REQUIRED);
+        Assume.assumeTrue("Only works with the SSL configured for app server", APP_SERVER_SSL_REQUIRED);
+    }
+
+    public static void assumeNotAppServerSSL() {
+        Assume.assumeFalse("Only works with the SSL disabled for app server", APP_SERVER_SSL_REQUIRED);
     }
 
     public static void assumeNotAuthServerQuarkus() {

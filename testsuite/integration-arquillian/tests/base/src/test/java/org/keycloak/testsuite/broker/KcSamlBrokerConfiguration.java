@@ -35,6 +35,17 @@ import static org.keycloak.testsuite.broker.BrokerTestTools.*;
 public class KcSamlBrokerConfiguration implements BrokerConfiguration {
 
     public static final KcSamlBrokerConfiguration INSTANCE = new KcSamlBrokerConfiguration();
+    public static final String ATTRIBUTE_TO_MAP_FRIENDLY_NAME = "user-attribute-friendly";
+
+    private final boolean loginHint;
+
+    public KcSamlBrokerConfiguration() {
+        this(false);
+    }
+
+    public KcSamlBrokerConfiguration(boolean loginHint) {
+        this.loginHint = loginHint;
+    }
 
     @Override
     public RealmRepresentation createProviderRealm() {
@@ -86,6 +97,7 @@ public class KcSamlBrokerConfiguration implements BrokerConfiguration {
         attributes.put(SamlConfigAttributes.SAML_SERVER_SIGNATURE, "false");
         attributes.put(SamlConfigAttributes.SAML_CLIENT_SIGNATURE_ATTRIBUTE, "false");
         attributes.put(SamlConfigAttributes.SAML_ENCRYPT, "false");
+        attributes.put(IdentityProviderModel.LOGIN_HINT, String.valueOf(loginHint));
 
         client.setAttributes(attributes);
 
@@ -131,18 +143,29 @@ public class KcSamlBrokerConfiguration implements BrokerConfiguration {
         userAttrMapperConfig.put(AttributeStatementHelper.SAML_ATTRIBUTE_NAMEFORMAT, AttributeStatementHelper.BASIC);
         userAttrMapperConfig.put(AttributeStatementHelper.FRIENDLY_NAME, "");
 
+        ProtocolMapperRepresentation userAttrMapper2 = new ProtocolMapperRepresentation();
+        userAttrMapper2.setName("attribute - name 2");
+        userAttrMapper2.setProtocol(SamlProtocol.LOGIN_PROTOCOL);
+        userAttrMapper2.setProtocolMapper(UserAttributeStatementMapper.PROVIDER_ID);
+
+        Map<String, String> userAttrMapper2Config = userAttrMapper2.getConfig();
+        userAttrMapper2Config.put(ProtocolMapperUtils.USER_ATTRIBUTE, KcOidcBrokerConfiguration.ATTRIBUTE_TO_MAP_NAME_2);
+        userAttrMapper2Config.put(AttributeStatementHelper.SAML_ATTRIBUTE_NAME, KcOidcBrokerConfiguration.ATTRIBUTE_TO_MAP_NAME_2);
+        userAttrMapper2Config.put(AttributeStatementHelper.SAML_ATTRIBUTE_NAMEFORMAT, AttributeStatementHelper.BASIC);
+        userAttrMapper2Config.put(AttributeStatementHelper.FRIENDLY_NAME, "");
+
         ProtocolMapperRepresentation userFriendlyAttrMapper = new ProtocolMapperRepresentation();
         userFriendlyAttrMapper.setName("attribute - friendly name");
         userFriendlyAttrMapper.setProtocol(SamlProtocol.LOGIN_PROTOCOL);
         userFriendlyAttrMapper.setProtocolMapper(UserAttributeStatementMapper.PROVIDER_ID);
 
         Map<String, String> userFriendlyAttrMapperConfig = userFriendlyAttrMapper.getConfig();
-        userFriendlyAttrMapperConfig.put(ProtocolMapperUtils.USER_ATTRIBUTE, AbstractUserAttributeMapperTest.ATTRIBUTE_TO_MAP_FRIENDLY_NAME);
+        userFriendlyAttrMapperConfig.put(ProtocolMapperUtils.USER_ATTRIBUTE, ATTRIBUTE_TO_MAP_FRIENDLY_NAME);
         userFriendlyAttrMapperConfig.put(AttributeStatementHelper.SAML_ATTRIBUTE_NAME, "urn:oid:1.2.3.4.5.6.7");
         userFriendlyAttrMapperConfig.put(AttributeStatementHelper.SAML_ATTRIBUTE_NAMEFORMAT, AttributeStatementHelper.BASIC);
-        userFriendlyAttrMapperConfig.put(AttributeStatementHelper.FRIENDLY_NAME, AbstractUserAttributeMapperTest.ATTRIBUTE_TO_MAP_FRIENDLY_NAME);
+        userFriendlyAttrMapperConfig.put(AttributeStatementHelper.FRIENDLY_NAME, ATTRIBUTE_TO_MAP_FRIENDLY_NAME);
 
-        client.setProtocolMappers(Arrays.asList(emailMapper, dottedAttrMapper, nestedAttrMapper, userAttrMapper, userFriendlyAttrMapper));
+        client.setProtocolMappers(Arrays.asList(emailMapper, dottedAttrMapper, nestedAttrMapper, userAttrMapper, userAttrMapper2, userFriendlyAttrMapper));
 
         return client;
     }
@@ -173,7 +196,6 @@ public class KcSamlBrokerConfiguration implements BrokerConfiguration {
             .attribute(SAML_ASSERTION_CONSUMER_URL_POST_ATTRIBUTE, getConsumerRoot() + "/sales-post/saml")
             .build(),
           ClientBuilder.create()
-            .id("broker-app")
             .clientId("broker-app")
             .name("broker-app")
             .secret("broker-app-secret")
@@ -200,6 +222,7 @@ public class KcSamlBrokerConfiguration implements BrokerConfiguration {
         config.put(SINGLE_LOGOUT_SERVICE_URL, getProviderRoot() + "/auth/realms/" + REALM_PROV_NAME + "/protocol/saml");
         config.put(NAME_ID_POLICY_FORMAT, "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress");
         config.put(FORCE_AUTHN, "false");
+        config.put(IdentityProviderModel.LOGIN_HINT, String.valueOf(loginHint));
         config.put(POST_BINDING_RESPONSE, "true");
         config.put(POST_BINDING_AUTHN_REQUEST, "true");
         config.put(VALIDATE_SIGNATURE, "false");

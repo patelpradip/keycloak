@@ -26,12 +26,14 @@ import {
   DataListItemCells,
   Grid,
   GridItem,
+  Button,
 } from '@patternfly/react-core';
 
-import { InfoAltIcon, CheckIcon, BuilderImageIcon } from '@patternfly/react-icons';
+import { InfoAltIcon, CheckIcon, BuilderImageIcon, ExternalLinkAltIcon } from '@patternfly/react-icons';
 import { ContentPage } from '../ContentPage';
 import { ContinueCancelModal } from '../../widgets/ContinueCancelModal';
-import AccountService, {HttpResponse} from '../../account-service/account.service';
+import { HttpResponse } from '../../account-service/account.service';
+import { AccountServiceContext } from '../../account-service/AccountServiceContext';
 import { Msg } from '../../widgets/Msg';
 
 declare const locale: string;
@@ -57,7 +59,7 @@ export interface Consent {
 }
 
 interface Application {
-  baseUrl: string;
+  effectiveUrl: string;
   clientId: string;
   clientName: string;
   consent: Consent;
@@ -69,9 +71,12 @@ interface Application {
 }
 
 export class ApplicationsPage extends React.Component<ApplicationsPageProps, ApplicationsPageState> {
+  static contextType = AccountServiceContext;
+  context: React.ContextType<typeof AccountServiceContext>;
 
-  public constructor(props: ApplicationsPageProps) {
+  public constructor(props: ApplicationsPageProps, context: React.ContextType<typeof AccountServiceContext>) {
     super(props);
+    this.context = context;
     this.state = {
       isRowOpen: [],
       applications: []
@@ -81,7 +86,7 @@ export class ApplicationsPage extends React.Component<ApplicationsPageProps, App
   }
 
   private removeConsent = (clientId: string) => {
-    AccountService.doDelete("/applications/" + clientId + "/consent")
+    this.context!.doDelete("/applications/" + clientId + "/consent")
       .then(() => {
         this.fetchApplications();
       });
@@ -94,7 +99,7 @@ export class ApplicationsPage extends React.Component<ApplicationsPageProps, App
   };
 
   private fetchApplications(): void {
-    AccountService.doGet<Application[]>("/applications")
+    this.context!.doGet<Application[]>("/applications")
       .then((response: HttpResponse<Application[]>) => {
         const applications = response.data || [];
         this.setState({
@@ -111,10 +116,33 @@ export class ApplicationsPage extends React.Component<ApplicationsPageProps, App
   public render(): React.ReactNode {
     return (
       <ContentPage title={Msg.localize('applicationsPageTitle')}>
-        <DataList id="applications-list" aria-label={Msg.localize('applicationsPageTitle')}>
+        <DataList id="applications-list" aria-label={Msg.localize('applicationsPageTitle')} isCompact>
+          <DataListItem id="applications-list-header" aria-labelledby="Columns names">
+            <DataListItemRow>
+              // invisible toggle allows headings to line up properly
+              <span style={{ visibility: 'hidden' }}>
+                <DataListToggle
+                  isExpanded={false}
+                  id='applications-list-header-invisible-toggle'
+                  aria-controls="hidden"
+                />
+              </span>
+              <DataListItemCells
+                dataListCells={[
+                  <DataListCell key='applications-list-client-id-header' width={2}>
+                    <strong><Msg msgKey='applicaitonName' /></strong>
+                  </DataListCell>,
+                  <DataListCell key='applications-list-app-type-header' width={2}>
+                    <strong><Msg msgKey='applicationType' /></strong>
+                  </DataListCell>,
+                  <DataListCell key='applications-list-status' width={2}>
+                    <strong><Msg msgKey='status' /></strong>
+                  </DataListCell>,
+                ]}
+              />
+            </DataListItemRow>
+          </DataListItem>
           {this.state.applications.map((application: Application, appIndex: number) => {
-            const appUrl: string = application.userConsentRequired ? application.baseUrl : '/auth' + application.baseUrl;
-
             return (
               <DataListItem id={this.elementId("client-id", application)} key={'application-' + appIndex} aria-labelledby="applications-list" isExpanded={this.state.isRowOpen[appIndex]}>
                 <DataListItemRow>
@@ -127,7 +155,9 @@ export class ApplicationsPage extends React.Component<ApplicationsPageProps, App
                   <DataListItemCells
                     dataListCells={[
                       <DataListCell id={this.elementId('name', application)} width={2} key={'app-' + appIndex}>
-                        <BuilderImageIcon size='sm' /> {application.clientName ? application.clientName : application.clientId}
+                        <Button component="a" variant="link" onClick={() => window.open(application.effectiveUrl)}>
+                          {application.clientName || application.clientId} <ExternalLinkAltIcon/>
+                        </Button>
                       </DataListCell>,
                       <DataListCell id={this.elementId('internal', application)} width={2} key={'internal-' + appIndex}>
                         {application.userConsentRequired ? Msg.localize('thirdPartyApp') : Msg.localize('internalApp')}
@@ -135,13 +165,7 @@ export class ApplicationsPage extends React.Component<ApplicationsPageProps, App
                       </DataListCell>,
                       <DataListCell id={this.elementId('status', application)} width={2} key={'status-' + appIndex}>
                         {application.inUse ? Msg.localize('inUse') : Msg.localize('notInUse')}
-                      </DataListCell>,
-                      <DataListCell id={this.elementId('baseurl', application)} width={4} key={'baseUrl-' + appIndex}>
-                        <button className="pf-c-button pf-m-link" type="button" onClick={() => window.open(appUrl)}>
-                          <span className="pf-c-button__icon">
-                            <i className="fas fa-link" aria-hidden="true"></i>
-                          </span>{application.baseUrl}</button>
-                      </DataListCell>,
+                      </DataListCell>
                     ]}
                   />
                 </DataListItemRow>
@@ -157,7 +181,7 @@ export class ApplicationsPage extends React.Component<ApplicationsPageProps, App
                       {application.description &&
                         <GridItem><strong>{Msg.localize('description') + ': '}</strong> {application.description}</GridItem>
                       }
-                      <GridItem><strong>{Msg.localize('baseUrl') + ': '}</strong> {application.baseUrl}</GridItem>
+                      <GridItem><strong>URL: </strong> {application.effectiveUrl}</GridItem>
                       {application.consent &&
                         <React.Fragment>
                           <GridItem span={12}>
@@ -184,9 +208,9 @@ export class ApplicationsPage extends React.Component<ApplicationsPageProps, App
                       }
                     </div>
                   </Grid>
-                  <Grid gutter='sm'>
-                    <hr />
-                    {application.consent &&
+                  {(application.consent || application.offlineAccess) &&
+                    <Grid gutter='sm'>
+                      <hr />
                       <GridItem>
                         <React.Fragment>
                           <ContinueCancelModal
@@ -199,9 +223,9 @@ export class ApplicationsPage extends React.Component<ApplicationsPageProps, App
                           />
                         </React.Fragment>
                       </GridItem>
-                    }
-                    <GridItem><InfoAltIcon /> {Msg.localize('infoMessage')}</GridItem>
-                  </Grid>
+                      <GridItem><InfoAltIcon /> {Msg.localize('infoMessage')}</GridItem>
+                    </Grid>
+                  }
                 </DataListContent>
               </DataListItem>
             )

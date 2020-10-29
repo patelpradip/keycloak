@@ -18,6 +18,8 @@
 import {KeycloakService} from '../keycloak-service/keycloak.service';
 import {ContentAlert} from '../content/ContentAlert';
 
+declare const baseUrl: string;
+
 type ConfigResolve = (config: RequestInit) => void;
 
 export interface HttpResponse<T = {}> extends Response {
@@ -38,11 +40,14 @@ export class AccountServiceError extends Error {
  *
  * @author Stan Silvert ssilvert@redhat.com (C) 2018 Red Hat Inc.
  */
-class AccountServiceClient {
-    private kcSvc: KeycloakService = KeycloakService.Instance;
-    private accountUrl: string = this.kcSvc.authServerUrl() + 'realms/' + this.kcSvc.realm() + '/account';
+export class AccountServiceClient {
+    private kcSvc: KeycloakService;
+    private accountUrl: string;
 
-    constructor() {}
+    public constructor(keycloakService: KeycloakService) {
+        this.kcSvc = keycloakService;
+        this.accountUrl = this.kcSvc.authServerUrl() + 'realms/' + this.kcSvc.realm() + '/account';
+    }
 
     public async doGet<T>(endpoint: string,
                           config?: RequestInitWithParams): Promise<HttpResponse<T>> {
@@ -85,12 +90,16 @@ class AccountServiceClient {
     }
 
     private handleError(response: HttpResponse): void {
-        if (response != null && response.status === 401) {
+        if (response !== null && response.status === 401) {
             // session timed out?
             this.kcSvc.login();
         }
 
-        if (response != null && response.data != null) {
+        if (response !== null && response.status === 403) {
+            window.location.href = baseUrl + '/#/forbidden';
+        }
+
+        if (response !== null && response.data != null) {
             ContentAlert.danger(
                 `${response.statusText}: ${response.data['errorMessage'] ? response.data['errorMessage'] : ''} ${response.data['error'] ? response.data['error'] : ''}`
             );
@@ -129,9 +138,6 @@ class AccountServiceClient {
     }
 
 }
-
-const AccountService: AccountServiceClient = new AccountServiceClient();
-export default AccountService;
 
 window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
     event.promise.catch(error => {

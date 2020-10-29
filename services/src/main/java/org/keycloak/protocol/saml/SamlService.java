@@ -22,7 +22,6 @@ import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
 import org.keycloak.common.VerificationException;
 import org.keycloak.common.util.PemUtils;
-import org.keycloak.common.util.StreamUtil;
 import org.keycloak.crypto.KeyStatus;
 import org.keycloak.dom.saml.v2.SAML2Object;
 import org.keycloak.dom.saml.v2.assertion.BaseIDAbstractType;
@@ -63,6 +62,8 @@ import org.keycloak.services.resources.RealmsResource;
 import org.keycloak.services.util.CacheControlUtil;
 import org.keycloak.utils.MediaType;
 
+import org.w3c.dom.Element;
+
 import javax.ws.rs.Consumes;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
@@ -73,27 +74,23 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.security.PublicKey;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
-import org.keycloak.common.util.StringPropertyReplacer;
 import org.keycloak.crypto.Algorithm;
 import org.keycloak.crypto.KeyUse;
 import org.keycloak.crypto.KeyWrapper;
-import org.keycloak.dom.saml.v2.metadata.KeyTypes;
 import org.keycloak.rotation.HardcodedKeyLocator;
 import org.keycloak.rotation.KeyLocator;
-import org.keycloak.saml.SPMetadataDescriptor;
 import org.keycloak.saml.processing.core.util.KeycloakKeySamlExtensionGenerator;
 import org.keycloak.saml.validators.DestinationValidator;
 import org.keycloak.sessions.AuthenticationSessionModel;
-import java.nio.charset.StandardCharsets;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.xml.crypto.dsig.XMLSignature;
 import org.w3c.dom.Document;
@@ -656,38 +653,28 @@ public class SamlService extends AuthorizationEndpointBase {
     }
 
     public static String getIDPMetadataDescriptor(UriInfo uriInfo, KeycloakSession session, RealmModel realm) {
-        InputStream is = SamlService.class.getResourceAsStream("/idp-metadata-template.xml");
-        String template;
-        try {
-            template = StreamUtil.readString(is, StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            logger.error("Cannot generate IdP metadata", ex);
-            return "";
-        }
-        Properties props = new Properties();
-        props.put("idp.entityID", RealmsResource.realmBaseUrl(uriInfo).build(realm.getName()).toString());
-        props.put("idp.sso.HTTP-POST", RealmsResource.protocolUrl(uriInfo).build(realm.getName(), SamlProtocol.LOGIN_PROTOCOL).toString());
-        props.put("idp.sso.HTTP-Redirect", RealmsResource.protocolUrl(uriInfo).build(realm.getName(), SamlProtocol.LOGIN_PROTOCOL).toString());
-        props.put("idp.sls.HTTP-POST", RealmsResource.protocolUrl(uriInfo).build(realm.getName(), SamlProtocol.LOGIN_PROTOCOL).toString());
-        StringBuilder keysString = new StringBuilder();
         Set<KeyWrapper> keys = new TreeSet<>((o1, o2) -> o1.getStatus() == o2.getStatus() // Status can be only PASSIVE OR ACTIVE, push PASSIVE to end of list
           ? (int) (o2.getProviderPriority() - o1.getProviderPriority())
           : (o1.getStatus() == KeyStatus.PASSIVE ? 1 : -1));
         keys.addAll(session.keys().getKeys(realm, KeyUse.SIG, Algorithm.RS256));
-        for (KeyWrapper key : keys) {
-            addKeyInfo(keysString, key, KeyTypes.SIGNING.value());
-        }
-        props.put("idp.signing.certificates", keysString.toString());
-        return StringPropertyReplacer.replaceProperties(template, props);
-    }
 
-    private static void addKeyInfo(StringBuilder target, KeyWrapper key, String purpose) {
-        if (key == null) {
-            return;
-        }
+        try {
+            List<Element> signingKeys = new ArrayList<Element>();
+            for (KeyWrapper key : keys) {
+                signingKeys.add(IDPMetadataDescriptor.buildKeyInfoElement(key.getKid(), PemUtils.encodeCertificate(key.getCertificate())));
+            }
 
-        target.append(SPMetadataDescriptor.xmlKeyInfo("                        ",
-          key.getKid(), PemUtils.encodeCertificate(key.getCertificate()), purpose, false));
+            return IDPMetadataDescriptor.getIDPDescriptor(
+                RealmsResource.protocolUrl(uriInfo).build(realm.getName(), SamlProtocol.LOGIN_PROTOCOL),
+                RealmsResource.protocolUrl(uriInfo).build(realm.getName(), SamlProtocol.LOGIN_PROTOCOL),
+                RealmsResource.protocolUrl(uriInfo).build(realm.getName(), SamlProtocol.LOGIN_PROTOCOL),
+                RealmsResource.realmBaseUrl(uriInfo).build(realm.getName()).toString(),
+                true, 
+                signingKeys, null);
+        } catch (Exception ex) {
+            logger.error("Cannot generate IdP metadata", ex);
+            return "";
+        }
     }
 
     private boolean isClientProtocolCorrect(ClientModel clientModel) {
@@ -704,16 +691,11 @@ public class SamlService extends AuthorizationEndpointBase {
     public Response idpInitiatedSSO(@PathParam("client") String clientUrlName, @QueryParam("RelayState") String relayState) {
         event.event(EventType.LOGIN);
         CacheControlUtil.noBackButtonCacheControlHeader();
-        ClientModel client = null;
-        for (ClientModel c : realm.getClients()) {
-            String urlName = c.getAttribute(SamlProtocol.SAML_IDP_INITIATED_SSO_URL_NAME);
-            if (urlName == null)
-                continue;
-            if (urlName.equals(clientUrlName)) {
-                client = c;
-                break;
-            }
-        }
+        ClientModel client = realm.getClientsStream()
+                .filter(c -> Objects.nonNull(c.getAttribute(SamlProtocol.SAML_IDP_INITIATED_SSO_URL_NAME)))
+                .filter(c -> Objects.equals(c.getAttribute(SamlProtocol.SAML_IDP_INITIATED_SSO_URL_NAME), clientUrlName))
+                .findFirst().orElse(null);
+
         if (client == null) {
             event.error(Errors.CLIENT_NOT_FOUND);
             return ErrorPage.error(session, null, Response.Status.BAD_REQUEST, Messages.CLIENT_NOT_FOUND);

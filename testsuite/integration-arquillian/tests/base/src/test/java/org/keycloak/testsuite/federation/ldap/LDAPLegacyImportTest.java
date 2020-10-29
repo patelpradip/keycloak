@@ -78,7 +78,7 @@ public class LDAPLegacyImportTest extends AbstractLDAPTest {
         testingClient.server().run(session -> {
             LDAPTestContext ctx = LDAPTestContext.init(session);
             RealmModel appRealm = ctx.getRealm();
-            ComponentModel ldapModel = appRealm.getComponents(appRealm.getId(), UserStorageProvider.class.getName()).get(0);
+            ComponentModel ldapModel = appRealm.getComponentsStream(appRealm.getId(), UserStorageProvider.class.getName()).findFirst().get();
 
             LDAPTestUtils.addLocalUser(session, appRealm, "marykeycloak", "mary@test.com", "password-app");
 
@@ -94,14 +94,6 @@ public class LDAPLegacyImportTest extends AbstractLDAPTest {
             appRealm.getClientByClientId("test-app").setDirectAccessGrantsEnabled(true);
         });
     }
-
-
-    //@Test
-    public void runit() throws Exception {
-        Thread.sleep(10000000);
-
-    }
-
 
     @Test
     public void loginClassic() {

@@ -76,18 +76,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.keycloak.testsuite.admin.Users.setPasswordFor;
-import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_HOST;
-import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_PORT;
-import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_SCHEME;
-import static org.keycloak.testsuite.arquillian.AuthServerTestEnricher.AUTH_SERVER_SSL_REQUIRED;
+import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_HOST;
+import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_PORT;
+import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_SCHEME;
+import static org.keycloak.testsuite.util.ServerURLs.AUTH_SERVER_SSL_REQUIRED;
 import static org.keycloak.testsuite.auth.page.AuthRealm.MASTER;
 import static org.keycloak.testsuite.util.URLUtils.navigateToUri;
-import static org.keycloak.testsuite.util.URLUtils.removeDefaultPorts;
+import static org.keycloak.testsuite.util.ServerURLs.removeDefaultPorts;
 
 /**
  *
@@ -492,19 +493,30 @@ public abstract class AbstractKeycloakTest {
         return ApiUtil.createUserWithAdminClient(adminClient.realm(realm), homer);
     }
 
+    public String createUser(String realm, String username, String password, String firstName, String lastName, String email, Consumer<UserRepresentation> customizer) {
+        UserRepresentation user = createUserRepresentation(username, email, firstName, lastName, true, password);
+        customizer.accept(user);
+        return ApiUtil.createUserWithAdminClient(adminClient.realm(realm), user);
+    }
+
     public String createUser(String realm, String username, String password, String firstName, String lastName, String email) {
         UserRepresentation homer = createUserRepresentation(username, email, firstName, lastName, true, password);
         return ApiUtil.createUserWithAdminClient(adminClient.realm(realm), homer);
     }
 
-    public static UserRepresentation createUserRepresentation(String username, String email, String firstName, String lastName, boolean enabled) {
+    public static UserRepresentation createUserRepresentation(String username, String email, String firstName, String lastName, List<String> groups, boolean enabled) {
         UserRepresentation user = new UserRepresentation();
         user.setUsername(username);
         user.setEmail(email);
         user.setFirstName(firstName);
         user.setLastName(lastName);
+        user.setGroups(groups);
         user.setEnabled(enabled);
         return user;
+    }
+
+    public static UserRepresentation createUserRepresentation(String username, String email, String firstName, String lastName, boolean enabled) {
+        return createUserRepresentation(username, email, firstName, lastName, null, enabled);
     }
 
     public static UserRepresentation createUserRepresentation(String username, String email, String firstName, String lastName, boolean enabled, String password) {

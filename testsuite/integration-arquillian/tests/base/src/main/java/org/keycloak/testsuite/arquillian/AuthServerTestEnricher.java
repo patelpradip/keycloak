@@ -16,6 +16,7 @@
  */
 package org.keycloak.testsuite.arquillian;
 
+import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.commons.lang.StringUtils;
 import org.jboss.arquillian.container.spi.ContainerRegistry;
 import org.jboss.arquillian.container.spi.client.container.LifecycleException;
@@ -52,6 +53,7 @@ import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.SqlUtils;
 import org.keycloak.testsuite.util.SystemInfoHelper;
 import org.keycloak.testsuite.util.VaultUtils;
+import org.keycloak.testsuite.util.ServerURLs;
 import org.wildfly.extras.creaper.commands.undertow.AddUndertowListener;
 import org.wildfly.extras.creaper.commands.undertow.RemoveUndertowListener;
 import org.wildfly.extras.creaper.commands.undertow.SslVerifyClient;
@@ -65,6 +67,7 @@ import org.wildfly.extras.creaper.core.online.operations.Operations;
 import org.wildfly.extras.creaper.core.online.operations.admin.Administration;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -84,7 +87,8 @@ import org.jboss.shrinkwrap.api.importer.ZipImporter;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
 import org.jboss.shrinkwrap.resolver.api.maven.Maven;
 import org.junit.Assert;
-import static org.keycloak.testsuite.util.URLUtils.removeDefaultPorts;
+import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
+import static org.keycloak.testsuite.util.ServerURLs.removeDefaultPorts;
 
 /**
  *
@@ -107,11 +111,6 @@ public class AuthServerTestEnricher {
 
     private JavaArchive testsuiteProvidersArchive;
     private String currentContainerName;
-
-    public static final boolean AUTH_SERVER_SSL_REQUIRED = Boolean.parseBoolean(System.getProperty("auth.server.ssl.required", "true"));
-    public static final String AUTH_SERVER_SCHEME = AUTH_SERVER_SSL_REQUIRED ? "https" : "http";
-    public static final String AUTH_SERVER_HOST = System.getProperty("auth.server.host", "localhost");
-    public static final String AUTH_SERVER_PORT = AUTH_SERVER_SSL_REQUIRED ? System.getProperty("auth.server.https.port", "8543") : System.getProperty("auth.server.http.port", "8180");
 
     public static final String AUTH_SERVER_CONTAINER_DEFAULT = "auth-server-undertow";
     public static final String AUTH_SERVER_CONTAINER_PROPERTY = "auth.server.container";
@@ -163,21 +162,6 @@ public class AuthServerTestEnricher {
 
     public static boolean isAuthServerQuarkus() {
         return AUTH_SERVER_CONTAINER.equals("auth-server-quarkus");
-    }
-
-    public static String getAuthServerContextRoot() {
-        return getAuthServerContextRoot(0);
-    }
-
-    public static String getAuthServerContextRoot(int clusterPortOffset) {
-        String host = System.getProperty("auth.server.host", "localhost");
-        int httpPort = Integer.parseInt(System.getProperty("auth.server.http.port")); // property must be set
-        int httpsPort = Integer.parseInt(System.getProperty("auth.server.https.port")); // property must be set
-
-        String scheme = AUTH_SERVER_SSL_REQUIRED ? "https" : "http";
-        int port = AUTH_SERVER_SSL_REQUIRED ? httpsPort : httpPort;
-
-        return removeDefaultPorts(String.format("%s://%s:%s", scheme, host, port + clusterPortOffset));
     }
 
     public static String getHttpAuthServerContextRoot() {
@@ -344,6 +328,17 @@ public class AuthServerTestEnricher {
         CrossDCTestEnricher.initializeSuiteContext(suiteContext);
         log.info("\n\n" + suiteContext);
         log.info("\n\n" + SystemInfoHelper.getSystemInfo());
+
+        // Remove all map storages present in target directory
+        // This is useful for example in intellij where target directory is not removed between test runs
+        File dir = new File(System.getProperty("project.build.directory", "target"));
+        FileFilter fileFilter = new WildcardFileFilter("map-*.json");
+        File[] files = dir.listFiles(fileFilter);
+        if (files != null) {
+            for (File f : files) {
+                f.delete();
+            }
+        }
     }
 
     private ContainerInfo updateWithAuthServerInfo(ContainerInfo authServerInfo) {
@@ -542,7 +537,7 @@ public class AuthServerTestEnricher {
     }
 
     public static void initializeTLS(ContainerInfo containerInfo) {
-        if (AUTH_SERVER_SSL_REQUIRED && containerInfo.isJBossBased()) {
+        if (ServerURLs.AUTH_SERVER_SSL_REQUIRED && containerInfo.isJBossBased()) {
             log.infof("\n\n### Setting up TLS for %s ##\n\n", containerInfo);
             try {
                 OnlineManagementClient client = getManagementClient(containerInfo);

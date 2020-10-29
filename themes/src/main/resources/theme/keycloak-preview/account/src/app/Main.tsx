@@ -22,8 +22,16 @@ import {HashRouter} from 'react-router-dom';
 import {App} from './App';
 import {ContentItem, ModulePageDef, flattenContent, initGroupAndItemIds, isExpansion, isModulePageDef} from './ContentPages';
 
+import { KeycloakClient, KeycloakService } from './keycloak-service/keycloak.service';
+import { KeycloakContext } from './keycloak-service/KeycloakContext';
+import { AccountServiceClient } from './account-service/account.service';
+import { AccountServiceContext } from './account-service/AccountServiceContext';
+
+declare const keycloak: KeycloakClient;
+
 declare let isReactLoading: boolean;
 declare function toggleReact(): void;
+declare const features: { [key: string]: boolean; };
 
 export interface MainProps {}
 export class Main extends React.Component<MainProps> {
@@ -38,9 +46,14 @@ export class Main extends React.Component<MainProps> {
     }
 
     public render(): React.ReactNode {
+        const keycloakService = new KeycloakService(keycloak);
         return (
             <HashRouter>
-                <App/>
+                <KeycloakContext.Provider value={keycloakService}>
+                    <AccountServiceContext.Provider value={new AccountServiceClient(keycloakService)}>
+                        <App/>
+                    </AccountServiceContext.Provider>
+                </KeycloakContext.Provider>
             </HashRouter>
         );
     }
@@ -54,7 +67,7 @@ function removeHidden(items: ContentItem[]): ContentItem[] {
     const visible: ContentItem[] = [];
 
     for (let item of items) {
-        if (item.hidden) continue;
+        if (item.hidden && eval(item.hidden)) continue;
 
         if (isExpansion(item)) {
             visible.push(item);

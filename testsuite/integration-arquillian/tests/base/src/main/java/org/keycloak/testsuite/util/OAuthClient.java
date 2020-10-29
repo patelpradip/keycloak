@@ -17,7 +17,12 @@
 
 package org.keycloak.testsuite.util;
 
-import com.google.common.base.Charsets;
+import static org.keycloak.testsuite.admin.Users.getPasswordOf;
+import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
+import static org.keycloak.testsuite.util.ServerURLs.removeDefaultPorts;
+import static org.keycloak.testsuite.util.UIUtils.clickLink;
+import static org.keycloak.testsuite.util.WaitUtils.waitUntilElement;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.http.Header;
@@ -58,12 +63,10 @@ import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.protocol.oidc.representations.OIDCConfigurationRepresentation;
 import org.keycloak.protocol.oidc.utils.OIDCResponseType;
 import org.keycloak.representations.AccessToken;
-import org.keycloak.representations.AccessTokenResponse;
 import org.keycloak.representations.IDToken;
 import org.keycloak.representations.JsonWebToken;
 import org.keycloak.representations.RefreshToken;
 import org.keycloak.representations.idm.UserRepresentation;
-import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 import org.keycloak.testsuite.runonserver.RunOnServerException;
 import org.keycloak.util.BasicAuthHelper;
 import org.keycloak.util.JsonSerialization;
@@ -72,9 +75,8 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.core.Form;
-import javax.ws.rs.core.UriBuilder;
+import com.google.common.base.Charsets;
+
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -90,9 +92,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.keycloak.testsuite.admin.Users.getPasswordOf;
-import static org.keycloak.testsuite.util.UIUtils.clickLink;
-import static org.keycloak.testsuite.util.URLUtils.removeDefaultPorts;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.Form;
+import javax.ws.rs.core.UriBuilder;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -106,7 +108,7 @@ public class OAuthClient {
     private static final boolean sslRequired = Boolean.parseBoolean(System.getProperty("auth.server.ssl.required"));
 
     static {
-        updateURLs(AuthServerTestEnricher.getAuthServerContextRoot());
+        updateURLs(getAuthServerContextRoot());
     }
 
     // Workaround, but many tests directly use system properties like OAuthClient.AUTH_SERVER_ROOT instead of taking the URL from suite context
@@ -201,6 +203,16 @@ public class OAuthClient {
         }
     }
 
+    public class BackchannelLogoutUrlBuilder {
+        private final String backchannelLogoutPath = "/backchannel-logout";
+
+        private final UriBuilder b = OIDCLoginProtocolService.logoutUrl(UriBuilder.fromUri(baseUrl)).path(backchannelLogoutPath);
+
+        public String build() {
+            return b.build(realm).toString();
+        }
+    }
+
     public void init(WebDriver driver) {
         this.driver = driver;
 
@@ -252,6 +264,30 @@ public class OAuthClient {
         return new AuthorizationEndpointResponse(this);
     }
 
+    public void updateAccountInformation(String username, String email) {
+        WaitUtils.waitForPageToLoad();
+        updateAccountInformation(username, email, "First", "Last");
+    }
+
+    public void linkUsers(String username, String password) {
+        WaitUtils.waitForPageToLoad();
+        WebElement linkAccountButton = driver.findElement(By.id("linkAccount"));
+        waitUntilElement(linkAccountButton).is().clickable();
+        linkAccountButton.click();
+
+        WaitUtils.waitForPageToLoad();
+        WebElement usernameInput = driver.findElement(By.id("username"));
+        usernameInput.clear();
+        usernameInput.sendKeys(username);
+        WebElement passwordInput = driver.findElement(By.id("password"));
+        passwordInput.clear();
+        passwordInput.sendKeys(password);
+
+        WebElement loginButton = driver.findElement(By.id("kc-login"));
+        waitUntilElement(loginButton).is().clickable();
+        loginButton.click();
+    }
+
     public AuthorizationEndpointResponse doLogin(UserRepresentation user) {
 
         return doLogin(user.getUsername(), getPasswordOf(user));
@@ -282,6 +318,29 @@ public class OAuthClient {
             System.err.println(src);
             throw t;
         }
+    }
+
+    private void updateAccountInformation(String username, String email, String firstName, String lastName) {
+
+        WebElement usernameInput = driver.findElement(By.id("username"));
+        usernameInput.clear();
+        usernameInput.sendKeys(username);
+
+        WebElement emailInput = driver.findElement(By.id("email"));
+        emailInput.clear();
+        emailInput.sendKeys(email);
+
+        WebElement firstNameInput = driver.findElement(By.id("firstName"));
+        firstNameInput.clear();
+        firstNameInput.sendKeys(firstName);
+
+        WebElement lastNameInput = driver.findElement(By.id("lastName"));
+        lastNameInput.clear();
+        lastNameInput.sendKeys(lastName);
+
+        WebElement submitButton = driver.findElement(By.cssSelector("input[type=\"submit\"]"));
+        waitUntilElement(submitButton).is().clickable();
+        submitButton.click();
     }
 
     public void doLoginGrant(String username, String password) {
@@ -499,6 +558,11 @@ public class OAuthClient {
                 post.addHeader("User-Agent", userAgent);
             }
 
+            if (customParameters != null) {
+                customParameters.keySet().stream()
+                        .forEach(paramName -> parameters.add(new BasicNameValuePair(paramName, customParameters.get(paramName))));
+            }
+
             UrlEncodedFormEntity formEntity;
             try {
                 formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
@@ -513,6 +577,11 @@ public class OAuthClient {
 
     public AccessTokenResponse doTokenExchange(String realm, String token, String targetAudience,
                                                String clientId, String clientSecret) throws Exception {
+        return doTokenExchange(realm, token, targetAudience, clientId, clientSecret, null);
+    }
+
+    public AccessTokenResponse doTokenExchange(String realm, String token, String targetAudience,
+                                               String clientId, String clientSecret, Map<String, String> additionalParams) throws Exception {
         try (CloseableHttpClient client = httpClient.get()) {
             HttpPost post = new HttpPost(getResourceOwnerPasswordCredentialGrantUrl(realm));
 
@@ -521,6 +590,12 @@ public class OAuthClient {
             parameters.add(new BasicNameValuePair(OAuth2Constants.SUBJECT_TOKEN, token));
             parameters.add(new BasicNameValuePair(OAuth2Constants.SUBJECT_TOKEN_TYPE, OAuth2Constants.ACCESS_TOKEN_TYPE));
             parameters.add(new BasicNameValuePair(OAuth2Constants.AUDIENCE, targetAudience));
+
+            if (additionalParams != null) {
+                for (Map.Entry<String, String> entry : additionalParams.entrySet()) {
+                    parameters.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+                }
+            }
 
             if (clientSecret != null) {
                 String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
@@ -640,6 +715,32 @@ public class OAuthClient {
             post.setHeader("Authorization", authorization);
         } else if (clientId != null) {
             parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ID, clientId));
+        }
+
+        UrlEncodedFormEntity formEntity;
+        try {
+            formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+        post.setEntity(formEntity);
+
+        return client.execute(post);
+    }
+
+    public CloseableHttpResponse doBackchannelLogout(String logoutTokon) {
+        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
+            return doBackchannelLogout(logoutTokon, client);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public CloseableHttpResponse doBackchannelLogout(String logoutToken, CloseableHttpClient client) throws IOException {
+        HttpPost post = new HttpPost(getBackchannelLogoutUrl().build());
+        List<NameValuePair> parameters = new LinkedList<>();
+        if (logoutToken != null) {
+            parameters.add(new BasicNameValuePair(OAuth2Constants.LOGOUT_TOKEN, logoutToken));
         }
 
         UrlEncodedFormEntity formEntity;
@@ -975,6 +1076,10 @@ public class OAuthClient {
         return new LogoutUrlBuilder();
     }
 
+    public BackchannelLogoutUrlBuilder getBackchannelLogoutUrl() {
+        return new BackchannelLogoutUrlBuilder();
+    }
+
     public String getTokenRevocationUrl() {
         UriBuilder b = OIDCLoginProtocolService.tokenRevocationUrl(UriBuilder.fromUri(baseUrl));
         return b.build(realm).toString();
@@ -1120,7 +1225,7 @@ public class OAuthClient {
         return this;
     }
 
-    public OAuthClient addCustomerParameter(String key, String value) {
+    public OAuthClient addCustomParameter(String key, String value) {
         if (customParameters == null) {
             customParameters = new HashMap<>();
         }
@@ -1212,6 +1317,7 @@ public class OAuthClient {
 
         private String idToken;
         private String accessToken;
+        private String issuedTokenType;
         private String tokenType;
         private int expiresIn;
         private int refreshExpiresIn;
@@ -1247,6 +1353,7 @@ public class OAuthClient {
                 if (statusCode == 200) {
                     idToken = (String) responseJson.get("id_token");
                     accessToken = (String) responseJson.get("access_token");
+                    issuedTokenType = (String) responseJson.get("issued_token_type");
                     tokenType = (String) responseJson.get("token_type");
                     expiresIn = (Integer) responseJson.get("expires_in");
                     refreshExpiresIn = (Integer) responseJson.get("refresh_expires_in");
@@ -1299,6 +1406,10 @@ public class OAuthClient {
 
         public String getRefreshToken() {
             return refreshToken;
+        }
+
+        public String getIssuedTokenType() {
+            return issuedTokenType;
         }
 
         public String getTokenType() {
@@ -1386,8 +1497,8 @@ public class OAuthClient {
         return driver;
     }
 
-    private WebElement findSocialButton(String providerId) {
-        String id = "zocial-" + providerId;
+    private WebElement findSocialButton(String alias) {
+        String id = "social-" + alias;
         return DroneUtils.getCurrentDriver().findElement(By.id(id));
     }
     

@@ -74,8 +74,8 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import static org.keycloak.testsuite.Assert.assertNames;
 import static org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer.REMOTE;
+import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
 
-import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 import org.keycloak.testsuite.arquillian.annotation.UncaughtServerErrorExpected;
 import org.keycloak.testsuite.auth.page.AuthRealm;
 import org.keycloak.testsuite.runonserver.RunOnServerException;
@@ -515,6 +515,18 @@ public class GroupTest extends AbstractGroupTest {
         assertNames(group1.getSubGroups(), "mygroup2");
         Assert.assertEquals("/mygroup1/mygroup2", group2.getPath());
 
+        assertAdminEvents.clear();
+
+        // Create top level group with the same name
+        group = GroupBuilder.create()
+                .name("mygroup2")
+                .build();
+        GroupRepresentation group3 = createGroup(realm, group);
+        // Try to move top level "mygroup2" as child of "mygroup1". It should fail as there is already a child group
+        // of "mygroup1" with name "mygroup2"
+        response = realm.groups().group(group1.getId()).subGroup(group3);
+        Assert.assertEquals(409, response.getStatus());
+        realm.groups().group(group3.getId()).remove();
 
         // Move "mygroup2" back under parent
         response = realm.groups().add(group2);
@@ -699,7 +711,7 @@ public class GroupTest extends AbstractGroupTest {
         final String realmName = AuthRealm.MASTER;
         createUser(realmName, userName, "pwd");
 
-        try (Keycloak userClient = Keycloak.getInstance(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth",
+        try (Keycloak userClient = Keycloak.getInstance(getAuthServerContextRoot() + "/auth",
           realmName, userName, "pwd", Constants.ADMIN_CLI_CLIENT_ID, TLSUtils.initializeTLS())) {
 
             expectedException.expect(ClientErrorException.class);
@@ -728,7 +740,7 @@ public class GroupTest extends AbstractGroupTest {
         RoleMappingResource mappings = realm.users().get(userId).roles();
         mappings.realmLevel().add(Collections.singletonList(adminRole));
 
-        try (Keycloak userClient = Keycloak.getInstance(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth",
+        try (Keycloak userClient = Keycloak.getInstance(getAuthServerContextRoot() + "/auth",
           realmName, userName, "pwd", Constants.ADMIN_CLI_CLIENT_ID, TLSUtils.initializeTLS())) {
 
             assertThat(userClient.realms().findAll(),  // Any admin operation will do
@@ -761,7 +773,7 @@ public class GroupTest extends AbstractGroupTest {
 
             realm.users().get(userId).joinGroup(groupId);
         }
-        try (Keycloak userClient = Keycloak.getInstance(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth",
+        try (Keycloak userClient = Keycloak.getInstance(getAuthServerContextRoot() + "/auth",
           realmName, userName, "pwd", Constants.ADMIN_CLI_CLIENT_ID, TLSUtils.initializeTLS())) {
 
             assertThat(userClient.realms().findAll(),  // Any admin operation will do
@@ -796,7 +808,7 @@ public class GroupTest extends AbstractGroupTest {
 
             mappings.realmLevel().add(Collections.singletonList(adminRole));
         }
-        try (Keycloak userClient = Keycloak.getInstance(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth",
+        try (Keycloak userClient = Keycloak.getInstance(getAuthServerContextRoot() + "/auth",
           realmName, userName, "pwd", Constants.ADMIN_CLI_CLIENT_ID, TLSUtils.initializeTLS())) {
 
             assertThat(userClient.realms().findAll(),  // Any admin operation will do

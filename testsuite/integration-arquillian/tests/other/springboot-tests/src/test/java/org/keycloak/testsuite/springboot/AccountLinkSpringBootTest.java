@@ -49,6 +49,7 @@ import static org.junit.Assert.assertThat;
 import static org.keycloak.models.AccountRoles.MANAGE_ACCOUNT;
 import static org.keycloak.models.AccountRoles.MANAGE_ACCOUNT_LINKS;
 import static org.keycloak.testsuite.admin.ApiUtil.createUserAndResetPasswordWithAdminClient;
+import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWith;
 import static org.keycloak.testsuite.util.WaitUtils.pause;
 
@@ -168,7 +169,7 @@ public class AccountLinkSpringBootTest extends AbstractSpringBootTest {
 
     @Before
     public void createParentChild() {
-        BrokerTestTools.createKcOidcBroker(adminClient, REALM_NAME, PARENT_REALM, suiteContext);
+        BrokerTestTools.createKcOidcBroker(adminClient, REALM_NAME, PARENT_REALM);
 
         testRealmLoginPage.setAuthRealm(REALM_NAME);
     }
@@ -184,7 +185,7 @@ public class AccountLinkSpringBootTest extends AbstractSpringBootTest {
 
         UriBuilder redirectUri = UriBuilder.fromUri(LINKING_URL).queryParam("response", "true");
 
-        UriBuilder directLinking = UriBuilder.fromUri(AuthServerTestEnricher.getAuthServerContextRoot() + "/auth")
+        UriBuilder directLinking = UriBuilder.fromUri(getAuthServerContextRoot() + "/auth")
                 .path("realms/{child-realm}/broker/{provider}/link")
                 .queryParam("client_id", CLIENT_ID)
                 .queryParam("redirect_uri", redirectUri.build())
@@ -470,7 +471,7 @@ public class AccountLinkSpringBootTest extends AbstractSpringBootTest {
 
             String uri = "/auth/realms/" + REALM_NAME + "/broker/" + PARENT_REALM + "/login";
 
-            uri = UriBuilder.fromUri(AuthServerTestEnricher.getAuthServerContextRoot())
+            uri = UriBuilder.fromUri(getAuthServerContextRoot())
                     .path(uri)
                     .queryParam(LoginActionsService.SESSION_CODE, queryParams.get(LoginActionsService.SESSION_CODE))
                     .queryParam(Constants.CLIENT_ID, queryParams.get(Constants.CLIENT_ID))
@@ -529,7 +530,7 @@ public class AccountLinkSpringBootTest extends AbstractSpringBootTest {
 
         assertThat(errorPage.getError(), is(equalTo("You are already authenticated as different user '"
                 + CHILD_USERNAME_1
-                + "' in this session. Please log out first.")));
+                + "' in this session. Please sign out first.")));
 
         logoutAll();
 
