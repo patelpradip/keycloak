@@ -19,7 +19,7 @@
         <feature-pack groupId="org.keycloak" artifactId="keycloak-server-feature-pack" version="${project.version}"/>
     </feature-packs>
     <version-overrides>
-        <version-override groupId="com.h2database" artifactId="h2" version="1.4.200"/>
+        <version-override groupId="com.h2database" artifactId="h2" version="1.4.193.redhat-2"/>
         <version-override groupId="io.undertow" artifactId="undertow-core" version="2.2.0.Final"/>
         <version-override groupId="org.apache.httpcomponents"  artifactId="httpclient" version="4.5.13"/>
         <version-override groupId="org.apache.lucene" artifactId="lucene-queryparser" version="7.1.0"/>
