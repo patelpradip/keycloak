@@ -78,7 +78,7 @@ public class RedirectUtils {
                 .collect(Collectors.toSet());
     }
 
-    private static String verifyRedirectUri(KeycloakSession session, String rootUrl, String redirectUri, Set<String> validRedirects, boolean requireRedirectUri) {
+    public static String verifyRedirectUri(KeycloakSession session, String rootUrl, String redirectUri, Set<String> validRedirects, boolean requireRedirectUri) {
         KeycloakUriInfo uriInfo = session.getContext().getUri();
         RealmModel realm = session.getContext().getRealm();
 
@@ -115,7 +115,7 @@ public class RedirectUtils {
 
             boolean valid = matchesRedirects(resolveValidRedirects, r);
 
-            if (!valid && r.startsWith(Constants.INSTALLED_APP_URL) && r.indexOf(':', Constants.INSTALLED_APP_URL.length()) >= 0) {
+            if (!valid && (r.startsWith(Constants.INSTALLED_APP_URL) || r.startsWith(Constants.INSTALLED_APP_LOOPBACK)) && r.indexOf(':', Constants.INSTALLED_APP_URL.length()) >= 0) {
                 int i = r.indexOf(':', Constants.INSTALLED_APP_URL.length());
 
                 StringBuilder sb = new StringBuilder();

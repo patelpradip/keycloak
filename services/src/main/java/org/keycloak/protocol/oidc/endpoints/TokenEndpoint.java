@@ -66,6 +66,7 @@ import org.keycloak.protocol.oidc.OIDCAdvancedConfigWrapper;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.protocol.oidc.utils.AuthorizeClientUtil;
+import org.keycloak.protocol.oidc.utils.PkceUtils;
 import org.keycloak.protocol.saml.JaxrsSAML2BindingBuilder;
 import org.keycloak.protocol.saml.SamlClient;
 import org.keycloak.protocol.saml.SamlProtocol;
@@ -121,15 +122,16 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.xml.namespace.QName;
 import java.io.IOException;
-import java.security.MessageDigest;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 import static org.keycloak.models.ImpersonationSessionNote.IMPERSONATOR_ID;
@@ -210,6 +212,7 @@ public class TokenEndpoint {
 
         if (!action.equals(Action.PERMISSION)) {
             checkClient();
+            checkParameterDuplicated();
         }
 
         switch (action) {
@@ -302,6 +305,15 @@ public class TokenEndpoint {
         }
 
         event.detail(Details.GRANT_TYPE, grantType);
+    }
+
+    private void checkParameterDuplicated() {
+        for (String key : formParams.keySet()) {
+            if (formParams.get(key).size() != 1) {
+                throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_REQUEST, "duplicated parameter",
+                    Response.Status.BAD_REQUEST);
+            }
+        }
     }
 
     public Response codeToToken() {
@@ -420,13 +432,13 @@ public class TokenEndpoint {
         // Compute client scopes again from scope parameter. Check if user still has them granted
         // (but in code-to-token request, it could just theoretically happen that they are not available)
         String scopeParam = codeData.getScope();
-        Set<ClientScopeModel> clientScopes = TokenManager.getRequestedClientScopes(scopeParam, client);
-        if (!TokenManager.verifyConsentStillAvailable(session, user, client, clientScopes)) {
+        Supplier<Stream<ClientScopeModel>> clientScopesSupplier = () -> TokenManager.getRequestedClientScopes(scopeParam, client);
+        if (!TokenManager.verifyConsentStillAvailable(session, user, client, clientScopesSupplier.get())) {
             event.error(Errors.NOT_ALLOWED);
             throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_SCOPE, "Client no longer has requested consent from user", Response.Status.BAD_REQUEST);
         }
 
-        ClientSessionContext clientSessionCtx = DefaultClientSessionContext.fromClientSessionAndClientScopes(clientSession, clientScopes, session);
+        ClientSessionContext clientSessionCtx = DefaultClientSessionContext.fromClientSessionAndClientScopes(clientSession, clientScopesSupplier.get(), session);
 
         // Set nonce as an attribute in the ClientSessionContext. Will be used for the token generation
         clientSessionCtx.setAttribute(OIDCLoginProtocol.NONCE_PARAM, codeData.getNonce());
@@ -508,7 +520,7 @@ public class TokenEndpoint {
             // plain or S256
             if (codeChallengeMethod != null && codeChallengeMethod.equals(OAuth2Constants.PKCE_METHOD_S256)) {
                 logger.debugf("PKCE codeChallengeMethod = %s", codeChallengeMethod);
-                codeVerifierEncoded = generateS256CodeChallenge(codeVerifier);
+                codeVerifierEncoded = PkceUtils.generateS256CodeChallenge(codeVerifier);
             } else {
                 logger.debug("PKCE codeChallengeMethod is plain");
                 codeVerifierEncoded = codeVerifier;
@@ -537,7 +549,7 @@ public class TokenEndpoint {
             session.clientPolicy().triggerOnEvent(new TokenRefreshContext(formParams));
         } catch (ClientPolicyException cpe) {
             event.error(cpe.getError());
-            throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_GRANT, cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
+            throw new CorsErrorResponseException(cors, cpe.getError(), cpe.getErrorDetail(), cpe.getErrorStatus());
         }
 
         AccessTokenResponse res;
@@ -642,7 +654,7 @@ public class TokenEndpoint {
         }
         processor.evaluateRequiredActionTriggers();
         UserModel user = authSession.getAuthenticatedUser();
-        if (user.getRequiredActions() != null && user.getRequiredActions().size() > 0) {
+        if (user.getRequiredActionsStream().count() > 0) {
             // Remove authentication session as "Resource Owner Password Credentials Grant" is single-request scoped authentication
             new AuthenticationSessionManager(session).removeAuthenticationSession(realm, authSession, false);
             event.error(Errors.RESOLVE_REQUIRED_ACTIONS);
@@ -717,10 +729,17 @@ public class TokenEndpoint {
         authSession.setClientNote(OIDCLoginProtocol.ISSUER, Urls.realmIssuer(session.getContext().getUri().getBaseUri(), realm.getName()));
         authSession.setClientNote(OIDCLoginProtocol.SCOPE_PARAM, scope);
 
-        // TODO: This should create transient session by default - hence not persist userSession at all. However we should have compatibility switch for support
-        // persisting of userSession
+        // persisting of userSession by default
+        UserSessionModel.SessionPersistenceState sessionPersistenceState = UserSessionModel.SessionPersistenceState.PERSISTENT;
+
+        boolean useRefreshToken = OIDCAdvancedConfigWrapper.fromClientModel(client).isUseRefreshTokenForClientCredentialsGrant();
+        if (!useRefreshToken) {
+            // we don't want to store a session hence we mark it as transient, see KEYCLOAK-9551
+            sessionPersistenceState = UserSessionModel.SessionPersistenceState.TRANSIENT;
+        }
+
         UserSessionModel userSession = session.sessions().createUserSession(authSession.getParentSession().getId(), realm, clientUser, clientUsername,
-                clientConnection.getRemoteAddr(), ServiceAccountConstants.CLIENT_AUTH, false, null, null, UserSessionModel.SessionPersistenceState.PERSISTENT);
+                clientConnection.getRemoteAddr(), ServiceAccountConstants.CLIENT_AUTH, false, null, null, sessionPersistenceState);
         event.session(userSession);
 
         AuthenticationManager.setClientScopesInSession(authSession);
@@ -734,8 +753,14 @@ public class TokenEndpoint {
         updateUserSessionFromClientAuth(userSession);
 
         TokenManager.AccessTokenResponseBuilder responseBuilder = tokenManager.responseBuilder(realm, client, event, session, userSession, clientSessionCtx)
-                .generateAccessToken()
-                .generateRefreshToken();
+                .generateAccessToken();
+
+        // Make refresh token generation optional, see KEYCLOAK-9551
+        if (useRefreshToken) {
+            responseBuilder = responseBuilder.generateRefreshToken();
+        } else {
+            responseBuilder.getAccessToken().setSessionState(null);
+        }
 
         String scopeParam = clientSessionCtx.getClientSession().getNote(OAuth2Constants.SCOPE);
         if (TokenUtil.isOIDCRequest(scopeParam)) {
@@ -819,9 +844,9 @@ public class TokenEndpoint {
         String requestedSubject = formParams.getFirst(OAuth2Constants.REQUESTED_SUBJECT);
         if (requestedSubject != null) {
             event.detail(Details.REQUESTED_SUBJECT, requestedSubject);
-            UserModel requestedUser = session.users().getUserByUsername(requestedSubject, realm);
+            UserModel requestedUser = session.users().getUserByUsername(realm, requestedSubject);
             if (requestedUser == null) {
-                requestedUser = session.users().getUserById(requestedSubject, realm);
+                requestedUser = session.users().getUserById(realm, requestedSubject);
             }
 
             if (requestedUser == null) {
@@ -1120,7 +1145,7 @@ public class TokenEndpoint {
         FederatedIdentityModel federatedIdentityModel = new FederatedIdentityModel(providerId, context.getId(),
                 context.getUsername(), context.getToken());
 
-        UserModel user = this.session.users().getUserByFederatedIdentity(federatedIdentityModel, realm);
+        UserModel user = this.session.users().getUserByFederatedIdentity(realm, federatedIdentityModel);
 
         if (user == null) {
 
@@ -1139,14 +1164,14 @@ public class TokenEndpoint {
             username = username.trim();
             context.setModelUsername(username);
             if (context.getEmail() != null && !realm.isDuplicateEmailsAllowed()) {
-                UserModel existingUser = session.users().getUserByEmail(context.getEmail(), realm);
+                UserModel existingUser = session.users().getUserByEmail(realm, context.getEmail());
                 if (existingUser != null) {
                     event.error(Errors.FEDERATED_IDENTITY_EXISTS);
                     throw new CorsErrorResponseException(cors, Errors.INVALID_TOKEN, "User already exists", Response.Status.BAD_REQUEST);
                 }
             }
 
-            UserModel existingUser = session.users().getUserByUsername(username, realm);
+            UserModel existingUser = session.users().getUserByUsername(realm, username);
             if (existingUser != null) {
                 event.error(Errors.FEDERATED_IDENTITY_EXISTS);
                 throw new CorsErrorResponseException(cors, Errors.INVALID_TOKEN, "User already exists", Response.Status.BAD_REQUEST);
@@ -1262,7 +1287,8 @@ public class TokenEndpoint {
             }
         }
 
-        AuthorizationTokenService.KeycloakAuthorizationRequest authorizationRequest = new AuthorizationTokenService.KeycloakAuthorizationRequest(session.getProvider(AuthorizationProvider.class), tokenManager, event, this.request, cors);
+        AuthorizationTokenService.KeycloakAuthorizationRequest authorizationRequest = new AuthorizationTokenService.KeycloakAuthorizationRequest(session.getProvider(AuthorizationProvider.class),
+                tokenManager, event, this.request, cors, clientConnection);
 
         authorizationRequest.setTicket(formParams.getFirst("ticket"));
         authorizationRequest.setClaimToken(claimToken);
@@ -1340,16 +1366,8 @@ public class TokenEndpoint {
         return m.matches();
     }
 
-    // https://tools.ietf.org/html/rfc7636#section-4.6
-    private String generateS256CodeChallenge(String codeVerifier) throws Exception {
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
-        md.update(codeVerifier.getBytes("ISO_8859_1"));
-        byte[] digestBytes = md.digest();
-        String codeVerifierEncoded = Base64Url.encode(digestBytes);
-        return codeVerifierEncoded;
-    }
-
     private static class TokenExchangeSamlProtocol extends SamlProtocol {
+
         final SamlClient samlClient;
 
         TokenExchangeSamlProtocol(SamlClient samlClient) {

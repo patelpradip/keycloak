@@ -17,6 +17,8 @@
 
 package org.keycloak.testsuite.federation.ldap;
 
+import java.util.stream.Collectors;
+
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -167,7 +169,7 @@ public class LDAPSyncTest extends AbstractLDAPTest {
 
             // Assert still old users in local provider
             LDAPTestAsserts.assertUserImported(userProvider, testRealm, "user5", "User5FN", "User5LN", "user5@email.org", "125");
-            Assert.assertNull(userProvider.getUserByUsername("user6", testRealm));
+            Assert.assertNull(userProvider.getUserByUsername(testRealm, "user6"));
 
             // Trigger partial sync
             KeycloakSessionFactory sessionFactory = session.getKeycloakSessionFactory();
@@ -219,7 +221,7 @@ public class LDAPSyncTest extends AbstractLDAPTest {
             // Assert syncing from LDAP fails due to duplicated email
             SynchronizationResult result = new UserStorageSyncManager().syncAllUsers(session.getKeycloakSessionFactory(), "test", ctx.getLdapModel());
             Assert.assertEquals(1, result.getFailed());
-            Assert.assertNull(session.userLocalStorage().getUserByUsername("user7-something", ctx.getRealm()));
+            Assert.assertNull(session.userLocalStorage().getUserByUsername(ctx.getRealm(), "user7-something"));
 
             // Update LDAP user to avoid duplicated email
             LDAPObject duplicatedLdapUser = ctx.getLdapProvider().loadLDAPUserByUsername(ctx.getRealm(), "user7-something");
@@ -246,9 +248,9 @@ public class LDAPSyncTest extends AbstractLDAPTest {
             LDAPTestContext ctx = LDAPTestContext.init(session);
 
             // Remove all users from model
-            for (UserModel user : session.userLocalStorage().getUsers(ctx.getRealm(), true)) {
-                session.userLocalStorage().removeUser(ctx.getRealm(), user);
-            }
+            session.userLocalStorage().getUsersStream(ctx.getRealm(), true)
+                    .collect(Collectors.toList())
+                    .forEach(user -> session.userLocalStorage().removeUser(ctx.getRealm(), user));
 
             // Change name of UUID attribute to same like usernameAttribute
             String uidAttrName = ctx.getLdapProvider().getLdapIdentityStore().getConfig().getUsernameLdapAttribute();
@@ -278,7 +280,7 @@ public class LDAPSyncTest extends AbstractLDAPTest {
             // Assert users imported with correct LDAP_ID
             LDAPTestAsserts.assertUserImported(session.users(), ctx.getRealm(), "user1", "User1FN", "User1LN", "user1@email.org", "121");
             LDAPTestAsserts.assertUserImported(session.users(), ctx.getRealm(), "user2", "User2FN", "User2LN", "user2@email.org", "122");
-            UserModel user1 = session.users().getUserByUsername("user1", ctx.getRealm());
+            UserModel user1 = session.users().getUserByUsername(ctx.getRealm(), "user1");
             Assert.assertEquals("user1", user1.getFirstAttribute(LDAPConstants.LDAP_ID));
         });
 
@@ -296,14 +298,16 @@ public class LDAPSyncTest extends AbstractLDAPTest {
             LDAPTestContext ctx = LDAPTestContext.init(session);
 
             // Remove all users from model
-            for (UserModel user : session.userLocalStorage().getUsers(ctx.getRealm(), true)) {
-                System.out.println("trying to delete user: " + user.getUsername());
-                UserCache userCache = session.userCache();
-                if (userCache != null) {
-                    userCache.evict(ctx.getRealm(), user);
-                }
-                session.userLocalStorage().removeUser(ctx.getRealm(), user);
-            }
+            session.userLocalStorage().getUsersStream(ctx.getRealm(), true)
+                    .peek(user -> System.out.println("trying to delete user: " + user.getUsername()))
+                    .collect(Collectors.toList())
+                    .forEach(user -> {
+                        UserCache userCache = session.userCache();
+                        if (userCache != null) {
+                            userCache.evict(ctx.getRealm(), user);
+                        }
+                        session.userLocalStorage().removeUser(ctx.getRealm(), user);
+                    });
 
             // Add street mapper and add some user including street
             ComponentModel streetMapper = LDAPTestUtils.addUserAttributeMapper(ctx.getRealm(), ctx.getLdapModel(), "streetMapper", "street", LDAPConstants.STREET);

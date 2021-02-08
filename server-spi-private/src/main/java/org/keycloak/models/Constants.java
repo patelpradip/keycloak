@@ -44,9 +44,12 @@ public final class Constants {
 
     public static final String INSTALLED_APP_URN = "urn:ietf:wg:oauth:2.0:oob";
     public static final String INSTALLED_APP_URL = "http://localhost";
+    public static final String INSTALLED_APP_LOOPBACK = "http://127.0.0.1";
+
     public static final String READ_TOKEN_ROLE = "read-token";
     public static final String[] BROKER_SERVICE_ROLES = {READ_TOKEN_ROLE};
     public static final String OFFLINE_ACCESS_ROLE = OAuth2Constants.OFFLINE_ACCESS;
+    public static final String DEFAULT_ROLES_ROLE_PREFIX = "default-roles";
 
     public static final String AUTHZ_UMA_PROTECTION = "uma_protection";
     public static final String AUTHZ_UMA_AUTHORIZATION = "uma_authorization";
@@ -105,4 +108,14 @@ public final class Constants {
     public static final Pattern CFG_DELIMITER_PATTERN = Pattern.compile("\\s*" + CFG_DELIMITER + "\\s*");
 
     public static final String OFFLINE_ACCESS_SCOPE_CONSENT_TEXT = "${offlineAccessScopeConsentText}";
+
+    /**
+     * If set as an attribute in the {@link KeycloakSession}, indicates that the storage should batch write operations.
+     */
+    public static final String STORAGE_BATCH_ENABLED = "org.keycloak.storage.batch_enabled";
+
+    /**
+     * If {@code #STORAGE_BATCH_ENABLED} is set, indicates the batch size.
+     */
+    public static final String STORAGE_BATCH_SIZE = "org.keycloak.storage.batch_size";
 }

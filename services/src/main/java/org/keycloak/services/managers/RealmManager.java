@@ -33,7 +33,6 @@ import org.keycloak.models.RealmProvider;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionProvider;
-import org.keycloak.models.session.UserSessionPersisterProvider;
 import org.keycloak.models.utils.DefaultAuthenticationFlows;
 import org.keycloak.models.utils.DefaultClientScopes;
 import org.keycloak.models.utils.DefaultRequiredActions;
@@ -57,6 +56,7 @@ import org.keycloak.services.clientregistration.policy.DefaultClientRegistration
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import org.keycloak.utils.ReservedCharValidator;
 
 /**
@@ -96,7 +96,12 @@ public class RealmManager {
     }
 
     public RealmModel createRealm(String id, String name) {
-        if (id == null) id = KeycloakModelUtils.generateId();
+        if (id == null) {
+            id = KeycloakModelUtils.generateId();
+        }
+        else {
+            ReservedCharValidator.validate(id);
+        }
         ReservedCharValidator.validate(name);
         RealmModel realm = model.createRealm(id, name);
         realm.setName(name);
@@ -104,6 +109,7 @@ public class RealmManager {
         // setup defaults
         setupRealmDefaults(realm);
 
+        KeycloakModelUtils.setupDefaultRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + name.toLowerCase());
         setupMasterAdminManagement(realm);
         setupRealmAdminManagement(realm);
         setupAccountManagement(realm);
@@ -256,11 +262,6 @@ public class RealmManager {
             UserSessionProvider sessions = session.sessions();
             if (sessions != null) {
                 sessions.onRealmRemoved(realm);
-            }
-
-            UserSessionPersisterProvider sessionsPersister = session.getProvider(UserSessionPersisterProvider.class);
-            if (sessionsPersister != null) {
-                sessionsPersister.onRealmRemoved(realm);
             }
 
             AuthenticationSessionProvider authSessions = session.authenticationSessions();
@@ -421,10 +422,10 @@ public class RealmManager {
 
             accountClient.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 
-            for (String role : AccountRoles.ALL) {
-                accountClient.addDefaultRole(role);
-                RoleModel roleModel = accountClient.getRole(role);
+            for (String role : AccountRoles.DEFAULT) {
+                RoleModel roleModel = accountClient.addRole(role);
                 roleModel.setDescription("${role_" + role + "}");
+                realm.addToDefaultRoles(roleModel);
             }
             RoleModel manageAccountLinks = accountClient.addRole(AccountRoles.MANAGE_ACCOUNT_LINKS);
             manageAccountLinks.setDescription("${role_" + AccountRoles.MANAGE_ACCOUNT_LINKS + "}");
@@ -437,6 +438,8 @@ public class RealmManager {
             RoleModel manageConsentRole = accountClient.addRole(AccountRoles.MANAGE_CONSENT);
             manageConsentRole.setDescription("${role_" + AccountRoles.MANAGE_CONSENT + "}");
             manageConsentRole.addCompositeRole(viewConsentRole);
+
+            KeycloakModelUtils.setupDeleteAccount(accountClient);
 
             ClientModel accountConsoleClient = realm.getClientByClientId(Constants.ACCOUNT_CONSOLE_CLIENT_ID);
             if (accountConsoleClient == null) {
@@ -502,6 +505,9 @@ public class RealmManager {
         if (id == null) {
             id = KeycloakModelUtils.generateId();
         }
+        else {
+            ReservedCharValidator.validate(id);
+        }
         RealmModel realm = model.createRealm(id, rep.getRealm());
         ReservedCharValidator.validate(rep.getRealm());
         realm.setName(rep.getRealm());
@@ -509,6 +515,12 @@ public class RealmManager {
         // setup defaults
 
         setupRealmDefaults(realm);
+
+        if (rep.getDefaultRole() == null) {
+            KeycloakModelUtils.setupDefaultRole(realm, determineDefaultRoleName(rep));
+        } else {
+            realm.setDefaultRole(RepresentationToModel.createRole(realm, rep.getDefaultRole()));
+        }
 
         boolean postponeMasterClientSetup = postponeMasterClientSetup(rep);
         if (!postponeMasterClientSetup) {
@@ -538,6 +550,7 @@ public class RealmManager {
         if (!hasRealmRole(rep, Constants.OFFLINE_ACCESS_ROLE) || !hasClientScope(rep, Constants.OFFLINE_ACCESS_ROLE)) {
             setupOfflineTokens(realm, rep);
         }
+
 
         if (rep.getClientScopes() == null) {
             createDefaultClientScopes(realm);
@@ -572,6 +585,10 @@ public class RealmManager {
         setupAuthenticationFlows(realm);
         setupRequiredActions(realm);
 
+        if (!hasRealmRole(rep, AccountRoles.DELETE_ACCOUNT)) {
+            KeycloakModelUtils.setupDeleteAccount(realm.getClientByClientId(Constants.ACCOUNT_MANAGEMENT_CLIENT_ID));
+        }
+
         // Refresh periodic sync tasks for configured storageProviders
         UserStorageSyncManager storageSync = new UserStorageSyncManager();
         realm.getUserStorageProvidersStream()
@@ -587,6 +604,21 @@ public class RealmManager {
         fireRealmPostCreate(realm);
 
         return realm;
+    }
+
+    private String determineDefaultRoleName(RealmRepresentation rep) {
+        String defaultRoleName = Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + rep.getRealm().toLowerCase(); 
+        if (! hasRealmRole(rep, defaultRoleName)) {
+            return defaultRoleName;
+        } else {
+            for (int i = 1; i < Integer.MAX_VALUE; i++) {
+                defaultRoleName = Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + rep.getRealm().toLowerCase() + "-" + i;
+                if (! hasRealmRole(rep, defaultRoleName)) {
+                    return defaultRoleName;
+                }
+            }
+        }
+        return null;
     }
 
     private boolean postponeMasterClientSetup(RealmRepresentation rep) {
@@ -674,24 +706,6 @@ public class RealmManager {
         return false;
     }
 
-    /**
-     * Query users based on a search string:
-     * <p/>
-     * "Bill Burke" first and last name
-     * "bburke@redhat.com" email
-     * "Burke" lastname or username
-     *
-     * @param searchString
-     * @param realmModel
-     * @return
-     */
-    public List<UserModel> searchUsers(String searchString, RealmModel realmModel) {
-        if (searchString == null) {
-            return Collections.emptyList();
-        }
-        return session.users().searchForUser(searchString.trim(), realmModel);
-    }
-
     private void setupAuthorizationServices(RealmModel realm) {
         KeycloakModelUtils.setupAuthorizationServices(realm);
     }
@@ -722,7 +736,15 @@ public class RealmManager {
             ClientManager clientManager = new ClientManager(this);
 
             for (ClientRepresentation client : clients) {
-                ClientModel clientModel = this.getRealmByName(rep.getRealm()).getClientById(client.getId());
+                RealmModel realmModel = this.getRealmByName(rep.getRealm());
+
+                ClientModel clientModel = Optional.ofNullable(client.getId())
+                        .map(realmModel::getClientById)
+                        .orElseGet(() -> realmModel.getClientByClientId(client.getClientId()));
+                
+                if (clientModel == null) {
+                    throw new RuntimeException("Cannot find provided client by dir import.");
+                }
 
                 UserModel serviceAccount = null;
                 if (clientModel.isServiceAccountsEnabled()) {

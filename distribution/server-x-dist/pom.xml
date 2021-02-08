@@ -21,7 +21,7 @@
     <parent>
         <artifactId>keycloak-distribution-parent</artifactId>
         <groupId>org.keycloak</groupId>
-        <version>12.0.0-SNAPSHOT</version>
+        <version>13.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>keycloak-server-x-dist</artifactId>
@@ -69,6 +69,12 @@
                                     <artifactId>keycloak-quarkus-server</artifactId>
                                     <type>jar</type>
                                     <outputDirectory>target/keycloak-quarkus-server</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.keycloak</groupId>
+                                    <artifactId>keycloak-quarkus-server-app</artifactId>
+                                    <type>jar</type>
+                                    <outputDirectory>target/keycloak-quarkus-server-app</outputDirectory>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

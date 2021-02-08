@@ -142,7 +142,7 @@ public class CachedRealm extends AbstractExtendableRevisioned {
     protected boolean adminEventsEnabled;
     protected Set<String> adminEnabledEventOperations = new HashSet<>();
     protected boolean adminEventsDetailsEnabled;
-    protected List<String> defaultRoles;
+    protected String defaultRoleId;
     private boolean allowUserManagedAccess;
 
     public Set<IdentityProviderMapperModel> getIdentityProviderMapperSet() {
@@ -162,6 +162,8 @@ public class CachedRealm extends AbstractExtendableRevisioned {
     protected Map<String, String> attributes;
 
     private Map<String, Integer> userActionTokenLifespans;
+
+    protected Map<String, Map<String,String>> realmLocalizationTexts;
 
     public CachedRealm(Long revision, RealmModel model) {
         super(revision, model.getId());
@@ -249,7 +251,7 @@ public class CachedRealm extends AbstractExtendableRevisioned {
         adminEventsEnabled = model.isAdminEventsEnabled();
         adminEventsDetailsEnabled = model.isAdminEventsDetailsEnabled();
 
-        defaultRoles = model.getDefaultRolesStream().collect(Collectors.toList());
+        defaultRoleId = model.getDefaultRole().getId();
         ClientModel masterAdminClient = model.getMasterAdminClient();
         this.masterAdminClient = (masterAdminClient != null) ? masterAdminClient.getId() : null;
 
@@ -301,6 +303,7 @@ public class CachedRealm extends AbstractExtendableRevisioned {
         } catch (UnsupportedOperationException ex) {
         }
 
+        realmLocalizationTexts = model.getRealmLocalizationTexts();
     }
 
     protected void cacheClientScopes(RealmModel model) {
@@ -315,6 +318,10 @@ public class CachedRealm extends AbstractExtendableRevisioned {
         return masterAdminClient;
     }
 
+    public String getDefaultRoleId() {
+        return defaultRoleId;
+    }
+
     public String getName() {
         return name;
     }
@@ -325,10 +332,6 @@ public class CachedRealm extends AbstractExtendableRevisioned {
 
     public String getDisplayNameHtml() {
         return displayNameHtml;
-    }
-
-    public List<String> getDefaultRoles() {
-        return defaultRoles;
     }
 
     public boolean isEnabled() {
@@ -717,5 +720,9 @@ public class CachedRealm extends AbstractExtendableRevisioned {
 
     public boolean isAllowUserManagedAccess() {
         return allowUserManagedAccess;
+    }
+
+    public Map<String, Map<String, String>> getRealmLocalizationTexts() {
+        return realmLocalizationTexts;
     }
 }

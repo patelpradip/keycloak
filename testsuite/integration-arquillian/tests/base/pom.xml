@@ -21,7 +21,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-tests</artifactId>
-        <version>12.0.0-SNAPSHOT</version>
+        <version>13.0.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -42,6 +42,7 @@
         <exclude.cluster>**/cluster/**/*Test.java</exclude.cluster>
         <exclude.crossdc>**/crossdc/**/*Test.java</exclude.crossdc>
         <mvel.version>2.4.0.Final</mvel.version>
+        <systemrules.version>1.19.0</systemrules.version>
     </properties>
     
     <dependencies>
@@ -135,6 +136,12 @@
             <artifactId>jandex</artifactId>
             <version>2.1.3.Final</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.stefanbirkner</groupId>
+            <artifactId>system-rules</artifactId>
+            <version>${systemrules.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     
     <build>
@@ -218,6 +225,7 @@
                                     <directory>src/test/resources</directory>
                                     <includes>
                                         <include>arquillian.xml</include>
+                                        <include>wildfly-config.xml</include>
                                         <include>password-blacklists/**</include>
                                         <include>log4j.properties</include>
                                         <include>vault/**</include>

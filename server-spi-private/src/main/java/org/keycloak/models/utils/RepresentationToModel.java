@@ -136,7 +136,7 @@ import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.UserStorageProviderModel;
 import org.keycloak.storage.federated.UserFederatedStorageProvider;
 import org.keycloak.util.JsonSerialization;
-import org.keycloak.validation.ClientValidationUtil;
+import org.keycloak.validation.ValidationUtil;
 
 public class RepresentationToModel {
 
@@ -294,6 +294,7 @@ public class RepresentationToModel {
 
                 newRealm.addRequiredActionProvider(model);
             }
+            DefaultRequiredActions.addDeleteAccountAction(newRealm);
         } else {
             DefaultRequiredActions.addActions(newRealm);
         }
@@ -332,23 +333,7 @@ public class RepresentationToModel {
         }
 
         importRoles(rep.getRoles(), newRealm);
-
-        // Setup realm default roles
-        if (rep.getDefaultRoles() != null) {
-            for (String roleString : rep.getDefaultRoles()) {
-                newRealm.addDefaultRole(roleString.trim());
-            }
-        }
-        // Setup client default roles
-        if (rep.getClients() != null) {
-            for (ClientRepresentation resourceRep : rep.getClients()) {
-                if (resourceRep.getDefaultRoles() != null) {
-                    ClientModel clientModel = createdClients.computeIfAbsent(resourceRep.getClientId(), k -> newRealm.getClientByClientId(resourceRep.getClientId()));
-                    clientModel.updateDefaultRoles(resourceRep.getDefaultRoles());
-                    createdClients.put(clientModel.getClientId(), clientModel);
-                }
-            }
-        }
+        convertDeprecatedDefaultRoles(rep, newRealm);
 
         // Now that all possible roles and clients are created, create scope mappings
 
@@ -627,7 +612,9 @@ public class RepresentationToModel {
 
         if (realmRoles.getRealm() != null) { // realm roles
             for (RoleRepresentation roleRep : realmRoles.getRealm()) {
-                createRole(realm, roleRep);
+                if (! realm.getDefaultRole().getName().equals(roleRep.getName())) { // default role was already imported
+                    createRole(realm, roleRep);
+                }
             }
         }
         if (realmRoles.getClient() != null) {
@@ -992,6 +979,47 @@ public class RepresentationToModel {
         }
     }
 
+    private static void convertDeprecatedDefaultRoles(RealmRepresentation rep, RealmModel newRealm) {
+        if (rep.getDefaultRole() == null) {
+
+            // Setup realm default roles
+            if (rep.getDefaultRoles() != null) {
+                rep.getDefaultRoles().stream()
+                        .map(String::trim)
+                        .map(name -> getOrAddRealmRole(newRealm, name))
+                        .forEach(role -> newRealm.getDefaultRole().addCompositeRole(role));
+            }
+
+            // Setup client default roles
+            if (rep.getClients() != null) {
+                for (ClientRepresentation clientRep : rep.getClients()) {
+                    if (clientRep.getDefaultRoles() != null) {
+                        Arrays.stream(clientRep.getDefaultRoles())
+                                .map(String::trim)
+                                .map(name -> getOrAddClientRole(newRealm.getClientById(clientRep.getId()), name))
+                                .forEach(role -> newRealm.getDefaultRole().addCompositeRole(role));
+                    }
+                }
+            }
+        }
+    }
+
+    private static RoleModel getOrAddRealmRole(RealmModel realm, String name) {
+        RoleModel role = realm.getRole(name);
+        if (role == null) {
+            role = realm.addRole(name);
+        }
+        return role;
+    }
+
+    private static RoleModel getOrAddClientRole(ClientModel client, String name) {
+        RoleModel role = client.getRole(name);
+        if (role == null) {
+            role = client.addRole(name);
+        }
+        return role;
+    }
+
     public static void renameRealm(RealmModel realm, String name) {
         if (name.equals(realm.getName())) return;
 
@@ -1129,10 +1157,6 @@ public class RepresentationToModel {
             realm.setPasswordPolicy(PasswordPolicy.parse(session, rep.getPasswordPolicy()));
         if (rep.getOtpPolicyType() != null) realm.setOTPPolicy(toPolicy(rep));
 
-        if (rep.getDefaultRoles() != null) {
-            realm.updateDefaultRoles(rep.getDefaultRoles().toArray(new String[rep.getDefaultRoles().size()]));
-        }
-
         WebAuthnPolicy webAuthnPolicy = getWebAuthnPolicyTwoFactor(rep);
         realm.setWebAuthnPolicy(webAuthnPolicy);
 
@@ -1221,7 +1245,7 @@ public class RepresentationToModel {
 
     // Roles
 
-    public static void createRole(RealmModel newRealm, RoleRepresentation roleRep) {
+    public static RoleModel createRole(RealmModel newRealm, RoleRepresentation roleRep) {
         RoleModel role = roleRep.getId() != null ? newRealm.addRole(roleRep.getId(), roleRep.getName()) : newRealm.addRole(roleRep.getName());
         if (roleRep.getDescription() != null) role.setDescription(roleRep.getDescription());
         if (roleRep.getAttributes() != null) {
@@ -1229,6 +1253,7 @@ public class RepresentationToModel {
                 role.setAttribute(attribute.getKey(), attribute.getValue());
             }
         }
+        return role;
     }
 
     private static void addComposites(RoleModel role, RoleRepresentation roleRep, RealmModel realm) {
@@ -1263,11 +1288,11 @@ public class RepresentationToModel {
     private static Map<String, ClientModel> createClients(KeycloakSession session, RealmRepresentation rep, RealmModel realm, Map<String, String> mappedFlows) {
         Map<String, ClientModel> appMap = new HashMap<String, ClientModel>();
         for (ClientRepresentation resourceRep : rep.getClients()) {
-            ClientModel app = createClient(session, realm, resourceRep, false, mappedFlows);
+            ClientModel app = createClient(session, realm, resourceRep, mappedFlows);
             appMap.put(app.getClientId(), app);
 
-            ClientValidationUtil.validate(session, app, false, c -> {
-                throw new RuntimeException("Invalid client " + app.getClientId() + ": " + c.getError());
+            ValidationUtil.validateClient(session, app, false, r -> {
+                throw new RuntimeException("Invalid client " + app.getClientId() + ": " + r.getAllErrorsAsString());
             });
         }
         return appMap;
@@ -1280,11 +1305,11 @@ public class RepresentationToModel {
      * @param resourceRep
      * @return
      */
-    public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep, boolean addDefaultRoles) {
-        return createClient(session, realm, resourceRep, addDefaultRoles, null);
+    public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep) {
+        return createClient(session, realm, resourceRep, null);
     }
 
-    private static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep, boolean addDefaultRoles, Map<String, String> mappedFlows) {
+    private static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep, Map<String, String> mappedFlows) {
         logger.debugv("Create client: {0}", resourceRep.getClientId());
 
         ClientModel client = resourceRep.getId() != null ? realm.addClient(resourceRep.getId(), resourceRep.getClientId()) : realm.addClient(resourceRep.getClientId());
@@ -1407,15 +1432,9 @@ public class RepresentationToModel {
             }
         }
 
-        if (addDefaultRoles && resourceRep.getDefaultRoles() != null) {
-            client.updateDefaultRoles(resourceRep.getDefaultRoles());
-        }
-
-
         if (resourceRep.getProtocolMappers() != null) {
             // first, remove all default/built in mappers
-            Set<ProtocolMapperModel> mappers = client.getProtocolMappers();
-            for (ProtocolMapperModel mapper : mappers) client.removeProtocolMapper(mapper);
+            client.getProtocolMappersStream().collect(Collectors.toList()).forEach(client::removeProtocolMapper);
 
             for (ProtocolMapperRepresentation mapper : resourceRep.getProtocolMappers()) {
                 client.addProtocolMapper(toModel(mapper));
@@ -1528,9 +1547,6 @@ public class RepresentationToModel {
         if (rep.getNotBefore() != null) {
             resource.setNotBefore(rep.getNotBefore());
         }
-        if (rep.getDefaultRoles() != null) {
-            resource.updateDefaultRoles(rep.getDefaultRoles());
-        }
 
         List<String> redirectUris = rep.getRedirectUris();
         if (redirectUris != null) {
@@ -1556,10 +1572,10 @@ public class RepresentationToModel {
     public static void updateClientProtocolMappers(ClientRepresentation rep, ClientModel resource) {
 
         if (rep.getProtocolMappers() != null) {
-            Map<String,ProtocolMapperModel> existingProtocolMappers = new HashMap<>();
-            for (ProtocolMapperModel existingProtocolMapper : resource.getProtocolMappers()) {
-                existingProtocolMappers.put(generateProtocolNameKey(existingProtocolMapper.getProtocol(), existingProtocolMapper.getName()), existingProtocolMapper);
-            }
+            Map<String,ProtocolMapperModel> existingProtocolMappers =
+                    resource.getProtocolMappersStream().collect(Collectors.toMap(mapper ->
+                            generateProtocolNameKey(mapper.getProtocol(), mapper.getName()), Function.identity()));
+
 
             for (ProtocolMapperRepresentation protocolMapperRepresentation : rep.getProtocolMappers()) {
                 String protocolNameKey = generateProtocolNameKey(protocolMapperRepresentation.getProtocol(), protocolMapperRepresentation.getName());
@@ -1606,8 +1622,7 @@ public class RepresentationToModel {
         if (resourceRep.getProtocol() != null) clientScope.setProtocol(resourceRep.getProtocol());
         if (resourceRep.getProtocolMappers() != null) {
             // first, remove all default/built in mappers
-            Set<ProtocolMapperModel> mappers = clientScope.getProtocolMappers();
-            for (ProtocolMapperModel mapper : mappers) clientScope.removeProtocolMapper(mapper);
+            clientScope.getProtocolMappersStream().collect(Collectors.toList()).forEach(clientScope::removeProtocolMapper);
 
             for (ProtocolMapperRepresentation mapper : resourceRep.getProtocolMappers()) {
                 clientScope.addProtocolMapper(toModel(mapper));
@@ -2242,7 +2257,7 @@ public class RepresentationToModel {
                 owner.setId(resourceServer.getId());
                 resource.setOwner(owner);
             } else if (owner.getName() != null) {
-                UserModel user = session.users().getUserByUsername(owner.getName(), realm);
+                UserModel user = session.users().getUserByUsername(realm, owner.getName());
 
                 if (user != null) {
                     owner.setId(user.getId());
@@ -2557,10 +2572,10 @@ public class RepresentationToModel {
             RealmModel realm = authorization.getRealm();
             KeycloakSession keycloakSession = authorization.getKeycloakSession();
             UserProvider users = keycloakSession.users();
-            UserModel ownerModel = users.getUserById(ownerId, realm);
+            UserModel ownerModel = users.getUserById(realm, ownerId);
 
             if (ownerModel == null) {
-                ownerModel = users.getUserByUsername(ownerId, realm);
+                ownerModel = users.getUserByUsername(realm, ownerId);
             }
 
             if (ownerModel == null) {

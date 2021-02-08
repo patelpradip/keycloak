@@ -23,6 +23,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.common.Profile;
 import org.keycloak.common.util.Retry;
 import org.keycloak.crypto.Algorithm;
 import org.keycloak.events.Details;
@@ -41,6 +42,7 @@ import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
 import org.keycloak.testsuite.console.page.AdminConsole;
 import org.keycloak.testsuite.pages.AccountUpdateProfilePage;
 import org.keycloak.testsuite.pages.AppPage;
@@ -49,6 +51,7 @@ import org.keycloak.testsuite.pages.ErrorPage;
 import org.keycloak.testsuite.pages.LoginPage;
 import org.keycloak.testsuite.pages.LoginPasswordUpdatePage;
 import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
+import org.keycloak.testsuite.util.AdminClientUtil;
 import org.keycloak.testsuite.util.ContainerAssume;
 import org.keycloak.testsuite.util.DroneUtils;
 import org.keycloak.testsuite.util.JavascriptBrowser;
@@ -58,16 +61,15 @@ import org.keycloak.testsuite.util.RealmBuilder;
 import org.keycloak.testsuite.util.TokenSignatureUtil;
 import org.keycloak.testsuite.util.UserBuilder;
 import org.keycloak.testsuite.util.WaitUtils;
-import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebDriver;
 
 import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.RandomStringUtils;
 
@@ -92,7 +94,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     @Override
     public void configureTestRealm(RealmRepresentation testRealm) {
         UserRepresentation user = UserBuilder.create()
-                                             .id("login-test")
+                                             .id(UUID.randomUUID().toString())
                                              .username("login-test")
                                              .email("login@test.com")
                                              .enabled(true)
@@ -101,7 +103,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
         userId = user.getId();
 
         UserRepresentation user2 = UserBuilder.create()
-                                              .id("login-test2")
+                                              .id(UUID.randomUUID().toString())
                                               .username("login-test2")
                                               .email("login2@test.com")
                                               .enabled(true)
@@ -160,7 +162,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
 
     @Test
     public void testBrowserSecurityHeaders() {
-        Client client = ClientBuilder.newClient();
+        Client client = AdminClientUtil.createResteasyClient();
         Response response = client.target(oauth.getLoginFormUrl()).request().get();
         Assert.assertThat(response.getStatus(), is(equalTo(200)));
         for (BrowserSecurityHeaders header : BrowserSecurityHeaders.values()) {
@@ -189,7 +191,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
         adminClient.realm("test").update(realmRep);
 
         try {
-            Client client = ClientBuilder.newClient();
+            Client client = AdminClientUtil.createResteasyClient();
             Response response = client.target(oauth.getLoginFormUrl()).request().get();
             String headerValue = response.getHeaderString(cspReportOnlyHeader);
             Assert.assertThat(headerValue, is(equalTo(expectedCspReportOnlyValue)));
@@ -204,7 +206,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     //KEYCLOAK-5556
     @Test
     public void testPOSTAuthenticationRequest() {
-        Client client = ClientBuilder.newClient();
+        Client client = AdminClientUtil.createResteasyClient();
 
         //POST request to http://localhost:8180/auth/realms/test/protocol/openid-connect/auth;
         UriBuilder b = OIDCLoginProtocolService.authUrl(UriBuilder.fromUri(AUTH_SERVER_ROOT));
@@ -298,15 +300,15 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
                 .assertEvent();
     }
 
-    private void setUserEnabled(String userName, boolean enabled) {
-        UserRepresentation rep = adminClient.realm("test").users().get(userName).toRepresentation();
+    private void setUserEnabled(String id, boolean enabled) {
+        UserRepresentation rep = adminClient.realm("test").users().get(id).toRepresentation();
         rep.setEnabled(enabled);
-        adminClient.realm("test").users().get(userName).update(rep);
+        adminClient.realm("test").users().get(id).update(rep);
     }
 
     @Test
     public void loginInvalidPasswordDisabledUser() {
-        setUserEnabled("login-test", false);
+        setUserEnabled(userId, false);
 
         try {
             loginPage.open();
@@ -326,13 +328,13 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
                     .removeDetail(Details.CONSENT)
                     .assertEvent();
         } finally {
-            setUserEnabled("login-test", true);
+            setUserEnabled(userId, true);
         }
     }
 
     @Test
     public void loginDisabledUser() {
-        setUserEnabled("login-test", false);
+        setUserEnabled(userId, false);
 
         try {
             loginPage.open();
@@ -352,11 +354,12 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
                     .removeDetail(Details.CONSENT)
                     .assertEvent();
         } finally {
-            setUserEnabled("login-test", true);
+            setUserEnabled(userId, true);
         }
     }
 
     @Test
+    @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
     public void loginDifferentUserAfterDisabledUserThrownOut() {
         String userId = adminClient.realm("test").users().search("test-user@localhost").get(0).getId();
         try {
@@ -546,7 +549,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
 
         } finally {
             setPasswordPolicy(null);
-            UserResource userRsc = adminClient.realm("test").users().get("login-test");
+            UserResource userRsc = adminClient.realm("test").users().get(userId);
             ApiUtil.resetUserPassword(userRsc, "password", false);
         }
     }
@@ -767,23 +770,28 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     // KEYCLOAK-1037
     @Test
     public void loginExpiredCodeWithExplicitRemoveExpired() {
-        loginPage.open();
-        setTimeOffset(5000);
-        // Explicitly call "removeExpired". Hence authSession won't exist, but will be restarted from the KC_RESTART
-        testingClient.testing().removeExpired("test");
+        getTestingClient().testing().setTestingInfinispanTimeService();
 
-        loginPage.login("login@test.com", "password");
+        try {
+            loginPage.open();
+            setTimeOffset(5000);
+            // Explicitly call "removeExpired". Hence authSession won't exist, but will be restarted from the KC_RESTART
+            testingClient.testing().removeExpired("test");
 
-        //loginPage.assertCurrent();
-        loginPage.assertCurrent();
+            loginPage.login("login@test.com", "password");
 
-        Assert.assertEquals("Your login attempt timed out. Login will start from the beginning.", loginPage.getError());
-        setTimeOffset(0);
+            //loginPage.assertCurrent();
+            loginPage.assertCurrent();
 
-        events.expectLogin().user((String) null).session((String) null).error(Errors.EXPIRED_CODE).clearDetails()
-                .detail(Details.RESTART_AFTER_TIMEOUT, "true")
-                .client((String) null)
-                .assertEvent();
+            Assert.assertEquals("Your login attempt timed out. Login will start from the beginning.", loginPage.getError());
+
+            events.expectLogin().user((String) null).session((String) null).error(Errors.EXPIRED_CODE).clearDetails()
+                    .detail(Details.RESTART_AFTER_TIMEOUT, "true")
+                    .client((String) null)
+                    .assertEvent();
+        } finally {
+            getTestingClient().testing().revertTestingInfinispanTimeService();
+        }
     }
 
     @Test
@@ -869,6 +877,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     }
 
     @Test
+    @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
     public void loginRememberMeExpiredIdle() throws Exception {
         setRememberMe(true, 1, null);
 
@@ -898,6 +907,7 @@ public class LoginTest extends AbstractTestRealmKeycloakTest {
     }
 
     @Test
+    @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
     public void loginRememberMeExpiredMaxLifespan() throws Exception {
         setRememberMe(true, null, 1);
 

@@ -93,6 +93,7 @@ import org.keycloak.representations.idm.authorization.UserPolicyRepresentation;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.admin.ApiUtil;
+import org.keycloak.testsuite.client.resources.TestApplicationResourceUrls;
 import org.keycloak.testsuite.util.ClientBuilder;
 import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.RealmBuilder;
@@ -142,7 +143,7 @@ public class EntitlementAPITest extends AbstractAuthzTest {
                         .authorizationServicesEnabled(true)
                         .redirectUris("http://localhost/resource-server-test")
                         .defaultRoles("uma_protection")
-                        .pairwise("http://pairwise.com")
+                        .pairwise(TestApplicationResourceUrls.pairwiseSectorIdentifierUri())
                         .directAccessGrants())
                 .client(ClientBuilder.create().clientId(TEST_CLIENT)
                         .secret("secret")
@@ -153,13 +154,19 @@ public class EntitlementAPITest extends AbstractAuthzTest {
                         .secret("secret")
                         .authorizationServicesEnabled(true)
                         .redirectUris("http://localhost/test-client")
-                        .pairwise("http://pairwise.com")
+                        .pairwise(TestApplicationResourceUrls.pairwiseSectorIdentifierUri())
                         .directAccessGrants())
                 .client(ClientBuilder.create().clientId(PUBLIC_TEST_CLIENT)
                         .secret("secret")
                         .redirectUris("http://localhost:8180/auth/realms/master/app/auth/*", "https://localhost:8543/auth/realms/master/app/auth/*")
                         .publicClient())
                 .build());
+
+        configureSectorIdentifierRedirectUris();
+    }
+
+    private void configureSectorIdentifierRedirectUris() {
+        testingClient.testApp().oidcClientEndpoints().setSectorIdentifierRedirectUris(Arrays.asList("http://localhost/resource-server-test", "http://localhost/test-client"));
     }
 
     @Before
@@ -1936,6 +1943,7 @@ public class EntitlementAPITest extends AbstractAuthzTest {
         controller.stop(suiteContext.getAuthServerInfo().getQualifier());
         controller.start(suiteContext.getAuthServerInfo().getQualifier());
         reconnectAdminClient();
+        configureSectorIdentifierRedirectUris();
 
         TokenIntrospectionResponse introspectionResponse = authzClient.protection().introspectRequestingPartyToken(response.getToken());
 
@@ -2284,6 +2292,83 @@ public class EntitlementAPITest extends AbstractAuthzTest {
         AuthorizationResponse response = authzClient.authorization().authorize(request);
 
         assertNotNull(response.getToken());
+        // Refresh token should not be present
+        assertNull(response.getRefreshToken());
+    }
+
+    @Test
+    public void testPermissionOrder() throws Exception {
+        ClientResource client = getClient(getRealm(), RESOURCE_SERVER_TEST);
+        AuthorizationResource authorization = client.authorization();
+        JSPolicyRepresentation policy = new JSPolicyRepresentation();
+
+        policy.setName(KeycloakModelUtils.generateId());
+        policy.setCode("$evaluation.grant();");
+
+        authorization.policies().js().create(policy).close();
+
+        ResourceRepresentation resource = new ResourceRepresentation();
+
+        resource.setName("my_resource");
+        resource.addScope("entity:read");
+
+        try (Response response = authorization.resources().create(resource)) {
+            resource = response.readEntity(ResourceRepresentation.class);
+        }
+
+        ScopeRepresentation featureAccessScope = new ScopeRepresentation("feature:access");
+        authorization.scopes().create(featureAccessScope);
+
+        ResourcePermissionRepresentation permission = new ResourcePermissionRepresentation();
+
+        permission.setName(KeycloakModelUtils.generateId());
+        permission.addPolicy(policy.getName());
+        permission.addResource(resource.getId());
+
+        authorization.permissions().resource().create(permission).close();
+
+        ScopePermissionRepresentation scopePermission = new ScopePermissionRepresentation();
+
+        scopePermission.setName(KeycloakModelUtils.generateId());
+        scopePermission.addPolicy(policy.getName());
+        scopePermission.addScope(featureAccessScope.getName());
+
+        authorization.permissions().scope().create(scopePermission).close();
+
+        AuthorizationRequest request = new AuthorizationRequest();
+
+        request.addPermission(null, "entity:read");
+        request.addPermission(null, "feature:access");
+
+        AuthzClient authzClient = getAuthzClient(AUTHZ_CLIENT_CONFIG);
+
+        AuthorizationResponse response = authzClient.authorization().authorize(request);
+        AccessToken token = toAccessToken(response.getToken());
+        Authorization result = token.getAuthorization();
+
+        assertEquals(2, result.getPermissions().size());
+        assertTrue(result.getPermissions().stream().anyMatch(p ->
+                p.getResourceId() == null && p.getScopes().contains(featureAccessScope.getName())));
+        String resourceId = resource.getId();
+        assertTrue(result.getPermissions().stream().anyMatch(p ->
+                p.getResourceId() != null && p.getResourceId().equals(resourceId) && p
+                .getScopes().contains("entity:read")));
+
+        request = new AuthorizationRequest();
+
+        request.addPermission(null, "feature:access");
+        request.addPermission(null, "entity:read");
+
+        response = authzClient.authorization().authorize(request);
+        token = toAccessToken(response.getToken());
+        result = token.getAuthorization();
+
+        assertEquals(2, result.getPermissions().size());
+        assertTrue(result.getPermissions().stream().anyMatch(p ->
+                p.getResourceId() == null && p.getScopes().contains(featureAccessScope.getName())));
+        assertTrue(result.getPermissions().stream().anyMatch(p ->
+                p.getResourceId() != null && p.getResourceId().equals(resourceId) && p
+                        .getScopes().contains("entity:read")));
     }
 
     private void testRptRequestWithResourceName(String configFile) {

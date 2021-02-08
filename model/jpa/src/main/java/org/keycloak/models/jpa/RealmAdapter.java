@@ -705,75 +705,36 @@ public class RealmAdapter implements RealmModel, JpaModel<RealmEntity> {
         return realm.getRequiredCredentials().stream().map(this::toRequiredCredentialModel);
     }
 
-
     @Override
+    @Deprecated
     public Stream<String> getDefaultRolesStream() {
-        Collection<RoleEntity> entities = realm.getDefaultRoles();
-        if (entities == null || entities.isEmpty()) return Stream.empty();
-        return entities.stream().map(RoleEntity::getName);
+        return getDefaultRole().getCompositesStream().filter(this::isRealmRole).map(RoleModel::getName);
+    }
+
+    private boolean isRealmRole(RoleModel role) {
+        return ! role.isClientRole();
     }
 
     @Override
+    @Deprecated
     public void addDefaultRole(String name) {
+        getDefaultRole().addCompositeRole(getOrAddRoleId(name));
+    }
+
+    private RoleModel getOrAddRoleId(String name) {
         RoleModel role = getRole(name);
         if (role == null) {
             role = addRole(name);
         }
-        Collection<RoleEntity> entities = realm.getDefaultRoles();
-        for (RoleEntity entity : entities) {
-            if (entity.getId().equals(role.getId())) {
-                return;
-            }
-        }
-        RoleEntity roleEntity = RoleAdapter.toRoleEntity(role, em);
-        entities.add(roleEntity);
-        em.flush();
-    }
-
-    public static boolean contains(String str, String[] array) {
-        for (String s : array) {
-            if (str.equals(s)) return true;
-        }
-        return false;
+        return role;
     }
 
     @Override
-    public void updateDefaultRoles(String[] defaultRoles) {
-        Collection<RoleEntity> entities = realm.getDefaultRoles();
-        Set<String> already = new HashSet<String>();
-        List<RoleEntity> remove = new ArrayList<RoleEntity>();
-        for (RoleEntity rel : entities) {
-            if (!contains(rel.getName(), defaultRoles)) {
-                remove.add(rel);
-            } else {
-                already.add(rel.getName());
-            }
-        }
-        for (RoleEntity entity : remove) {
-            entities.remove(entity);
-        }
-        em.flush();
-        for (String roleName : defaultRoles) {
-            if (!already.contains(roleName)) {
-                addDefaultRole(roleName);
-            }
-        }
-        em.flush();
-    }
-
-    @Override
+    @Deprecated
     public void removeDefaultRoles(String... defaultRoles) {
-        Collection<RoleEntity> entities = realm.getDefaultRoles();
-        List<RoleEntity> remove = new ArrayList<RoleEntity>();
-        for (RoleEntity rel : entities) {
-            if (contains(rel.getName(), defaultRoles)) {
-                remove.add(rel);
-            }
+        for (String defaultRole : defaultRoles) {
+            getDefaultRole().removeCompositeRole(getRole(defaultRole));
         }
-        for (RoleEntity entity : remove) {
-            entities.remove(entity);
-        }
-        em.flush();
     }
 
     @Override
@@ -1228,6 +1189,19 @@ public class RealmAdapter implements RealmModel, JpaModel<RealmEntity> {
         String appEntityId = client !=null ? em.getReference(ClientEntity.class, client.getId()).getId() : null;
         realm.setMasterAdminClient(appEntityId);
         em.flush();
+    }
+
+    @Override
+    public void setDefaultRole(RoleModel role) {
+        realm.setDefaultRoleId(role.getId());
+    }
+
+    @Override
+    public RoleModel getDefaultRole() {
+        if (realm.getDefaultRoleId() == null) {
+            return null;
+        }
+        return session.roles().getRoleById(this, realm.getDefaultRoleId());
     }
 
     @Override
@@ -2249,6 +2223,56 @@ public class RealmAdapter implements RealmModel, JpaModel<RealmEntity> {
         if (c == null) return null;
         if (!c.getRealm().equals(getEntity())) return null;
         return c;
+    }
+
+    @Override
+    public void patchRealmLocalizationTexts(String locale, Map<String, String> localizationTexts) {
+        Map<String, RealmLocalizationTextsEntity> currentLocalizationTexts = realm.getRealmLocalizationTexts();
+        if(currentLocalizationTexts.containsKey(locale)) {
+            RealmLocalizationTextsEntity localizationTextsEntity = currentLocalizationTexts.get(locale);
+            Map<String, String> keys = new HashMap<>(localizationTextsEntity.getTexts());
+            keys.putAll(localizationTexts);
+            localizationTextsEntity.setTexts(keys);
+            localizationTextsEntity.getTexts().putAll(localizationTexts);
+
+            em.persist(localizationTextsEntity);
+        }
+        else {
+            RealmLocalizationTextsEntity realmLocalizationTextsEntity = new RealmLocalizationTextsEntity();
+            realmLocalizationTextsEntity.setRealmId(realm.getId());
+            realmLocalizationTextsEntity.setLocale(locale);
+            realmLocalizationTextsEntity.setTexts(localizationTexts);
+
+            em.persist(realmLocalizationTextsEntity);
+        }
+    }
+
+    @Override
+    public boolean removeRealmLocalizationTexts(String locale) {
+        if (locale == null) return false;
+        if (realm.getRealmLocalizationTexts().containsKey(locale))
+        {
+            em.remove(realm.getRealmLocalizationTexts().get(locale));
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public Map<String, Map<String, String>> getRealmLocalizationTexts() {
+        Map<String, Map<String, String>> localizationTexts = new HashMap<>();
+        realm.getRealmLocalizationTexts().forEach((locale, localizationTextsEntity) -> {
+            localizationTexts.put(localizationTextsEntity.getLocale(), localizationTextsEntity.getTexts());
+        });
+        return localizationTexts;
+    }
+
+    @Override
+    public Map<String, String> getRealmLocalizationTextsByLocale(String locale) {
+        if (realm.getRealmLocalizationTexts().containsKey(locale)) {
+            return realm.getRealmLocalizationTexts().get(locale).getTexts();
+        }
+        return Collections.emptyMap();
     }
 
     @Override

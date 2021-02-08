@@ -24,6 +24,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.common.Profile;
 import org.keycloak.credential.CredentialModel;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
@@ -46,6 +47,7 @@ import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.arquillian.AuthServerTestEnricher;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
+import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
 import org.keycloak.testsuite.drone.Different;
 import org.keycloak.testsuite.pages.AccountApplicationsPage;
 import org.keycloak.testsuite.pages.AccountFederatedIdentityPage;
@@ -77,6 +79,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.hamcrest.Matchers;
 import org.junit.Assume;
@@ -100,6 +103,7 @@ import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.A
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
  * @author Stan Silvert ssilvert@redhat.com (C) 2016 Red Hat Inc.
  */
+@DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true)
 public class AccountFormServiceTest extends AbstractTestRealmKeycloakTest {
 
     public static final String ROOT_URL_CLIENT = "root-url-client";
@@ -477,9 +481,10 @@ public class AccountFormServiceTest extends AbstractTestRealmKeycloakTest {
         final String uId = userId;  // Needed for run-on-server
         testingClient.server("test").run(session -> {
             RealmModel realm = session.getContext().getRealm();
-            UserModel user = session.users().getUserById(uId, realm);
+            UserModel user = session.users().getUserById(realm, uId);
             assertThat(user, Matchers.notNullValue());
-            List<CredentialModel> storedCredentials = session.userCredentialManager().getStoredCredentials(realm, user);
+            List<CredentialModel> storedCredentials = session.userCredentialManager()
+                    .getStoredCredentialsStream(realm, user).collect(Collectors.toList());
             assertThat(storedCredentials, Matchers.hasSize(expectedNumberOfStoredCredentials));
         });
     }

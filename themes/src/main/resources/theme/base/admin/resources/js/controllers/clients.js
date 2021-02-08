@@ -1289,6 +1289,13 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
            }
        }
 
+        var useRefreshToken = $scope.client.attributes["client_credentials.use_refresh_token"];
+        if (useRefreshToken === "true") {
+            $scope.useRefreshTokenForClientCredentialsGrant = true;
+        } else {
+            $scope.useRefreshTokenForClientCredentialsGrant = false;
+        }
+
         if ($scope.client.attributes["display.on.consent.screen"]) {
             if ($scope.client.attributes["display.on.consent.screen"] == "true") {
                 $scope.displayOnConsentScreen = true;
@@ -1311,6 +1318,13 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
             } else {
                 $scope.backchannelLogoutRevokeOfflineSessions = false;
             }
+        }
+
+
+        if ($scope.client.attributes["request.uris"] && $scope.client.attributes["request.uris"].length > 0) {
+            $scope.client.requestUris = $scope.client.attributes["request.uris"].split("##");
+        } else {
+            $scope.client.requestUris = [];
         }
     }
 
@@ -1449,6 +1463,9 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
         if ($scope.newWebOrigin && $scope.newWebOrigin.length > 0) {
             return true;
         }
+        if ($scope.newRequestUri && $scope.newRequestUri.length > 0) {
+            return true;
+        }
         return false;
     }
 
@@ -1536,12 +1553,23 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
         $scope.changed = isChanged();
     }, true);
 
+    $scope.$watch('newRequestUri', function() {
+        $scope.changed = isChanged();
+    }, true);
+
     $scope.deleteWebOrigin = function(index) {
         $scope.clientEdit.webOrigins.splice(index, 1);
     }
     $scope.addWebOrigin = function() {
         $scope.clientEdit.webOrigins.push($scope.newWebOrigin);
         $scope.newWebOrigin = "";
+    }
+    $scope.deleteRequestUri = function(index) {
+        $scope.clientEdit.requestUris.splice(index, 1);
+    }
+    $scope.addRequestUri = function() {
+        $scope.clientEdit.requestUris.push($scope.newRequestUri);
+        $scope.newRequestUri = "";
     }
     $scope.deleteRedirectUri = function(index) {
         $scope.clientEdit.redirectUris.splice(index, 1);
@@ -1560,6 +1588,16 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
         if ($scope.newWebOrigin && $scope.newWebOrigin.length > 0) {
             $scope.addWebOrigin();
         }
+
+        if ($scope.newRequestUri && $scope.newRequestUri.length > 0) {
+            $scope.addRequestUri();
+        }
+        if ($scope.clientEdit.requestUris && $scope.clientEdit.requestUris.length > 0) {
+            $scope.clientEdit.attributes["request.uris"] = $scope.clientEdit.requestUris.join("##");
+        } else {
+            $scope.clientEdit.attributes["request.uris"] = null;
+        }
+        delete $scope.clientEdit.requestUris;
 
         if ($scope.samlServerSignature == true) {
             $scope.clientEdit.attributes["saml.server.signature"] = "true";
@@ -1632,6 +1670,14 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
             $scope.clientEdit.attributes["tls.client.certificate.bound.access.tokens"] = "true";
         } else {
             $scope.clientEdit.attributes["tls.client.certificate.bound.access.tokens"] = "false";
+        }
+
+        // KEYCLOAK-9551 Client Credentials Grant generates refresh token
+        // https://tools.ietf.org/html/rfc6749#section-4.4.3
+        if ($scope.useRefreshTokenForClientCredentialsGrant === true) {
+            $scope.clientEdit.attributes["client_credentials.use_refresh_token"] = "true";
+        } else {
+            $scope.clientEdit.attributes["client_credentials.use_refresh_token"] = "false";
         }
 
         if ($scope.displayOnConsentScreen == true) {
