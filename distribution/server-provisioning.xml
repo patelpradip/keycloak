@@ -26,7 +26,7 @@
         <version-override groupId="org.bouncycastle" artifactId="bcpg-jdk15on" version="1.68"/>
         <version-override groupId="org.liquibase" artifactId="liquibase-core" version="3.5.3.redhat-1"/>
         <version-override groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.10.5.1"/>
-        <version-override groupId="org.hibernate" artifactId="hibernate-core" version="5.4.24.Final"/>
+        <version-override groupId="org.hibernate" artifactId="hibernate-core" version="5.4.21.Final-redhat-00005"/>
         <version-override groupId="org.apache.activemq" artifactId="artemis-server" version="2.16.0"/>
     </version-overrides>
 </server-provisioning>
