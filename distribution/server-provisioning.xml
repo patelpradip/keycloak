@@ -18,4 +18,20 @@
     <feature-packs>
         <feature-pack groupId="org.keycloak" artifactId="keycloak-server-feature-pack" version="${project.version}"/>
     </feature-packs>
+    <version-overrides>
+        <version-override groupId="com.h2database" artifactId="h2" version="1.4.193.redhat-2"/>
+        <version-override groupId="org.bouncycastle" artifactId="bcprov-jdk15on" version="1.68"/>
+        <version-override groupId="org.bouncycastle" artifactId="bcpkix-jdk15on" version="1.68"/>
+        <version-override groupId="org.bouncycastle" artifactId="bcprov-jdk15to18" version="1.68"/>
+        <version-override groupId="org.bouncycastle" artifactId="bcmail-jdk15on" version="1.68"/>
+        <version-override groupId="org.bouncycastle" artifactId="bcpg-jdk15on" version="1.68"/>
+        <version-override groupId="org.liquibase" artifactId="liquibase-core" version="3.5.3.redhat-1"/>
+        <version-override groupId="com.fasterxml.jackson.core" artifactId="jackson-databind" version="2.10.5.1"/>
+        <version-override groupId="org.hibernate" artifactId="hibernate-core" version="5.4.21.Final-redhat-00005"/>
+        <version-override groupId="org.apache.activemq" artifactId="artemis-server" version="2.16.0"/>
+        <version-override groupId="commons-codec" artifactId="commons-codec" version="1.14.0.redhat-00001"/>
+        <version-override groupId="org.apache.cxf" artifactId="cxf-rt-transports-http" version="3.3.7.redhat-00001"/>
+        <version-override groupId="org.jboss.resteasy" artifactId="resteasy-client" version="4.5.6.Final-redhat-00012"/>
+        <version-override groupId="org.jsoup" artifactId="jsoup" version="1.8.3.redhat-2"/>
+    </version-overrides>
 </server-provisioning>
