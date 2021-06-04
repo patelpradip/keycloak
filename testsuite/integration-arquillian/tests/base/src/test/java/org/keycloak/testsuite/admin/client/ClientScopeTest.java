@@ -39,7 +39,6 @@ import org.keycloak.testsuite.admin.ApiUtil;
 import org.keycloak.testsuite.util.AdminEventPaths;
 import org.keycloak.testsuite.util.Matchers;
 
-import javax.ws.rs.BadRequestException;
 import javax.ws.rs.ClientErrorException;
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.core.Response;
@@ -51,6 +50,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -82,7 +82,8 @@ public class ClientScopeTest extends AbstractClientTest {
 
     @Test (expected = NotFoundException.class)
     public void testGetUnknownScope() {
-        clientScopes().get("unknown-id").toRepresentation();
+        String unknownId = UUID.randomUUID().toString();
+        clientScopes().get(unknownId).toRepresentation();
     }
 
 
@@ -333,12 +334,12 @@ public class ClientScopeTest extends AbstractClientTest {
         return testRealmResource().roles().get(roleName).toRepresentation();
     }
 
-    // KEYCLOAK-2844
     @Test
     public void testRemoveClientScopeInUse() {
         // Add client scope
         ClientScopeRepresentation scopeRep = new ClientScopeRepresentation();
         scopeRep.setName("foo-scope");
+        scopeRep.setProtocol("openid-connect");
         String scopeId = createClientScope(scopeRep);
 
         // Add client with the clientScope
@@ -349,21 +350,8 @@ public class ClientScopeTest extends AbstractClientTest {
         clientRep.setDefaultClientScopes(Collections.singletonList("foo-scope"));
         String clientDbId = createClient(clientRep);
 
-        // Can't remove clientScope
-        try {
-            clientScopes().get(scopeId).remove();
-            Assert.fail("Not expected to successfully remove clientScope in use");
-        } catch (BadRequestException bre) {
-            ErrorRepresentation error = bre.getResponse().readEntity(ErrorRepresentation.class);
-            Assert.assertEquals("Cannot remove client scope, it is currently in use", error.getErrorMessage());
-            assertAdminEvents.assertEmpty();
-        }
-
-        // Remove client
-        removeClient(clientDbId);
-
-        // Can remove clientScope now
         removeClientScope(scopeId);
+        removeClient(clientDbId);
     }
 
 

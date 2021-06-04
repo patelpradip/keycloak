@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.keycloak.common.util.MultivaluedHashMap;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -59,6 +60,8 @@ public class RealmRepresentation {
     protected Integer accessCodeLifespanLogin;
     protected Integer actionTokenGeneratedByAdminLifespan;
     protected Integer actionTokenGeneratedByUserLifespan;
+    protected Integer oauth2DeviceCodeLifespan;
+    protected Integer oauth2DevicePollingInterval;
     protected Boolean enabled;
     protected String sslRequired;
     @Deprecated
@@ -138,6 +141,11 @@ public class RealmRepresentation {
     protected Integer webAuthnPolicyPasswordlessCreateTimeout;
     protected Boolean webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister;
     protected List<String> webAuthnPolicyPasswordlessAcceptableAaguids;
+
+    // Client Policies/Profiles
+
+    protected ClientProfilesRepresentation clientProfiles;
+    protected ClientPoliciesRepresentation clientPolicies;
 
     protected List<UserRepresentation> users;
     protected List<UserRepresentation> federatedUsers;
@@ -474,6 +482,22 @@ public class RealmRepresentation {
 
     public void setActionTokenGeneratedByAdminLifespan(Integer actionTokenGeneratedByAdminLifespan) {
         this.actionTokenGeneratedByAdminLifespan = actionTokenGeneratedByAdminLifespan;
+    }
+
+    public void setOAuth2DeviceCodeLifespan(Integer oauth2DeviceCodeLifespan) {
+        this.oauth2DeviceCodeLifespan = oauth2DeviceCodeLifespan;
+    }
+
+    public Integer getOAuth2DeviceCodeLifespan() {
+        return oauth2DeviceCodeLifespan;
+    }
+
+    public void setOAuth2DevicePollingInterval(Integer oauth2DevicePollingInterval) {
+        this.oauth2DevicePollingInterval = oauth2DevicePollingInterval;
+    }
+
+    public Integer getOAuth2DevicePollingInterval() {
+        return oauth2DevicePollingInterval;
     }
 
     public Integer getActionTokenGeneratedByUserLifespan() {
@@ -1155,6 +1179,24 @@ public class RealmRepresentation {
         this.webAuthnPolicyPasswordlessAcceptableAaguids = webAuthnPolicyPasswordlessAcceptableAaguids;
     }
 
+    // Client Policies/Profiles
+
+    public ClientProfilesRepresentation getClientProfiles() {
+        return clientProfiles;
+    }
+
+    public void setClientProfiles(ClientProfilesRepresentation clientProfiles) {
+        this.clientProfiles = clientProfiles;
+    }
+
+    public ClientPoliciesRepresentation getClientPolicies() {
+        return clientPolicies;
+    }
+
+    public void setClientPolicies(ClientPoliciesRepresentation clientPolicies) {
+        this.clientPolicies = clientPolicies;
+    }
+
     public String getBrowserFlow() {
         return browserFlow;
     }
@@ -1284,5 +1326,10 @@ public class RealmRepresentation {
 
     public Boolean isUserManagedAccessAllowed() {
         return userManagedAccessAllowed;
+    }
+
+    @JsonIgnore
+    public Map<String, String> getAttributesOrEmpty() {
+        return (Map<String, String>) (attributes == null ? Collections.emptyMap() : attributes);
     }
 }

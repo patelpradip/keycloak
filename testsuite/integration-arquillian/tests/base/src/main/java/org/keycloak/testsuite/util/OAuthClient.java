@@ -17,6 +17,10 @@
 
 package org.keycloak.testsuite.util;
 
+import static org.keycloak.protocol.oidc.OIDCLoginProtocol.LOGIN_HINT_PARAM;
+import static org.keycloak.protocol.oidc.grants.ciba.CibaGrantType.AUTH_REQ_ID;
+import static org.keycloak.protocol.oidc.grants.ciba.CibaGrantType.BINDING_MESSAGE;
+import static org.keycloak.protocol.oidc.grants.device.DeviceGrantType.oauth2DeviceAuthUrl;
 import static org.keycloak.testsuite.admin.Users.getPasswordOf;
 import static org.keycloak.testsuite.util.ServerURLs.getAuthServerContextRoot;
 import static org.keycloak.testsuite.util.ServerURLs.removeDefaultPorts;
@@ -33,6 +37,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpOptions;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
@@ -58,6 +64,8 @@ import org.keycloak.jose.jwk.JWKParser;
 import org.keycloak.jose.jws.JWSInput;
 import org.keycloak.models.Constants;
 import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.protocol.oidc.grants.ciba.CibaGrantType;
+import org.keycloak.protocol.oidc.grants.ciba.channel.AuthenticationChannelResponse;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.protocol.oidc.representations.OIDCConfigurationRepresentation;
@@ -66,6 +74,7 @@ import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.IDToken;
 import org.keycloak.representations.JsonWebToken;
 import org.keycloak.representations.RefreshToken;
+import org.keycloak.representations.UserInfo;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testsuite.runonserver.RunOnServerException;
 import org.keycloak.util.BasicAuthHelper;
@@ -702,6 +711,75 @@ public class OAuthClient {
         } 
     }
 
+    public AuthenticationRequestAcknowledgement doBackchannelAuthenticationRequest(String clientId, String clientSecret, String userid, String bindingMessage, String acrValues) throws Exception {
+        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
+            HttpPost post = new HttpPost(getBackchannelAuthenticationUrl());
+
+            String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
+            post.setHeader("Authorization", authorization);
+
+            List<NameValuePair> parameters = new LinkedList<>();
+            if (userid != null) parameters.add(new BasicNameValuePair(LOGIN_HINT_PARAM, userid));
+            if (bindingMessage != null) parameters.add(new BasicNameValuePair(BINDING_MESSAGE, bindingMessage));
+            if (acrValues != null) parameters.add(new BasicNameValuePair(OAuth2Constants.ACR_VALUES, acrValues));
+            if (scope != null) {
+                parameters.add(new BasicNameValuePair(OAuth2Constants.SCOPE, OAuth2Constants.SCOPE_OPENID + " " + scope));
+            } else {
+                parameters.add(new BasicNameValuePair(OAuth2Constants.SCOPE, OAuth2Constants.SCOPE_OPENID));
+            }
+
+            UrlEncodedFormEntity formEntity;
+            try {
+                formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+            post.setEntity(formEntity);
+
+            return new AuthenticationRequestAcknowledgement(client.execute(post));
+        }
+    }
+
+    public int doAuthenticationChannelCallback(String requestToken, AuthenticationChannelResponse.Status authStatus) throws Exception {
+        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
+            HttpPost post = new HttpPost(getAuthenticationChannelCallbackUrl());
+
+            String authorization = TokenUtil.TOKEN_TYPE_BEARER + " " + requestToken;
+            post.setHeader("Authorization", authorization);
+
+            post.setEntity(new StringEntity(JsonSerialization.writeValueAsString(new AuthenticationChannelResponse(authStatus)), ContentType.APPLICATION_JSON));
+
+            return client.execute(post).getStatusLine().getStatusCode();
+        }
+    }
+
+    public AccessTokenResponse doBackchannelAuthenticationTokenRequest(String clientSecret, String authReqId) throws Exception {
+        return doBackchannelAuthenticationTokenRequest(this.clientId, clientSecret, authReqId);
+    }
+
+    public AccessTokenResponse doBackchannelAuthenticationTokenRequest(String clientId, String clientSecret, String authReqId) throws Exception {
+        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
+            HttpPost post = new HttpPost(getBackchannelAuthenticationTokenRequestUrl());
+
+            String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
+            post.setHeader("Authorization", authorization);
+
+            List<NameValuePair> parameters = new LinkedList<>();
+            parameters.add(new BasicNameValuePair(OAuth2Constants.GRANT_TYPE, OAuth2Constants.CIBA_GRANT_TYPE));
+            parameters.add(new BasicNameValuePair(AUTH_REQ_ID, authReqId));
+
+            UrlEncodedFormEntity formEntity;
+            try {
+                formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+            post.setEntity(formEntity);
+
+            return new AccessTokenResponse(client.execute(post));
+        }
+    }
+
     // KEYCLOAK-6771 Certificate Bound Token
     public CloseableHttpResponse doLogout(String refreshToken, String clientSecret) {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
@@ -724,6 +802,9 @@ public class OAuthClient {
             post.setHeader("Authorization", authorization);
         } else if (clientId != null) {
             parameters.add(new BasicNameValuePair(OAuth2Constants.CLIENT_ID, clientId));
+        }
+        if (origin != null) {
+            post.addHeader("Origin", origin);
         }
 
         UrlEncodedFormEntity formEntity;
@@ -856,9 +937,86 @@ public class OAuthClient {
         }
     }
 
+    public DeviceAuthorizationResponse doDeviceAuthorizationRequest(String clientId, String clientSecret) throws Exception {
+        try (CloseableHttpClient client = httpClient.get()) {
+            HttpPost post = new HttpPost(getDeviceAuthorizationUrl());
+
+            List<NameValuePair> parameters = new LinkedList<>();
+            if (clientSecret != null) {
+                String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
+                post.setHeader("Authorization", authorization);
+            } else {
+                parameters.add(new BasicNameValuePair("client_id", clientId));
+            }
+
+            if (origin != null) {
+                post.addHeader("Origin", origin);
+            }
+
+            if (scope != null) {
+                parameters.add(new BasicNameValuePair(OAuth2Constants.SCOPE, scope));
+            }
+            if (nonce != null) {
+                parameters.add(new BasicNameValuePair(OIDCLoginProtocol.NONCE_PARAM, scope));
+            }
+
+            UrlEncodedFormEntity formEntity;
+            try {
+                formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+            post.setEntity(formEntity);
+
+            return new DeviceAuthorizationResponse(client.execute(post));
+        }
+    }
+
+    public AccessTokenResponse doDeviceTokenRequest(String clientId, String clientSecret, String deviceCode) throws Exception {
+        try (CloseableHttpClient client = httpClient.get()) {
+            HttpPost post = new HttpPost(getAccessTokenUrl());
+
+            List<NameValuePair> parameters = new LinkedList<>();
+            parameters.add(new BasicNameValuePair(OAuth2Constants.GRANT_TYPE, OAuth2Constants.DEVICE_CODE_GRANT_TYPE));
+            parameters.add(new BasicNameValuePair("device_code", deviceCode));
+            if (clientSecret != null) {
+                String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
+                post.setHeader("Authorization", authorization);
+            } else {
+                parameters.add(new BasicNameValuePair("client_id", clientId));
+            }
+
+            if (origin != null) {
+                post.addHeader("Origin", origin);
+            }
+
+            UrlEncodedFormEntity formEntity;
+            try {
+                formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+            post.setEntity(formEntity);
+
+            return new AccessTokenResponse(client.execute(post));
+        }
+    }
+
     public OIDCConfigurationRepresentation doWellKnownRequest(String realm) {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
             return SimpleHttp.doGet(baseUrl + "/realms/" + realm + "/.well-known/openid-configuration", client).asJson(OIDCConfigurationRepresentation.class);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public UserInfo doUserInfoRequest(String accessToken) {
+        try (CloseableHttpClient client = HttpClientBuilder.create().build()) {
+            HttpGet get = new HttpGet(getUserInfoUrl());
+            get.setHeader("Authorization", "Bearer " + accessToken);
+            try (CloseableHttpResponse response = client.execute(get)) {
+                return JsonSerialization.readValue(response.getEntity().getContent(), UserInfo.class);
+            }
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
@@ -973,6 +1131,10 @@ public class OAuthClient {
 
     public void openLoginForm() {
         driver.navigate().to(getLoginFormUrl());
+    }
+
+    public void openOAuth2DeviceVerificationForm(String verificationUri) {
+        driver.navigate().to(verificationUri);
     }
 
     public void openLogout() {
@@ -1113,7 +1275,32 @@ public class OAuthClient {
         return getResourceOwnerPasswordCredentialGrantUrl();
     }
 
+    public String getDeviceAuthorizationUrl() {
+        UriBuilder b = oauth2DeviceAuthUrl(UriBuilder.fromUri(baseUrl));
+        return b.build(realm).toString();
+    }
+
     public String getRefreshTokenUrl() {
+        UriBuilder b = OIDCLoginProtocolService.tokenUrl(UriBuilder.fromUri(baseUrl));
+        return b.build(realm).toString();
+    }
+
+    public String getUserInfoUrl() {
+        UriBuilder b = OIDCLoginProtocolService.userInfoUrl(UriBuilder.fromUri(baseUrl));
+        return b.build(realm).toString();
+    }
+
+    public String getBackchannelAuthenticationUrl() {
+        UriBuilder b = CibaGrantType.authorizationUrl(UriBuilder.fromUri(baseUrl));
+        return b.build(realm).toString();
+    }
+
+    public String getAuthenticationChannelCallbackUrl() {
+        UriBuilder b = CibaGrantType.authenticationUrl(UriBuilder.fromUri(baseUrl));
+        return b.build(realm).toString();
+    }
+
+    public String getBackchannelAuthenticationTokenRequestUrl() {
         UriBuilder b = OIDCLoginProtocolService.tokenUrl(UriBuilder.fromUri(baseUrl));
         return b.build(realm).toString();
     }
@@ -1242,6 +1429,13 @@ public class OAuthClient {
         return this;
     }
 
+    public OAuthClient removeCustomParameter(String key) {
+        if (customParameters != null) {
+            customParameters.remove(key);
+        }
+        return this;
+    }
+
     public static class AuthorizationEndpointResponse {
 
         private boolean isRedirected;
@@ -1255,6 +1449,8 @@ public class OAuthClient {
         // Just during OIDC implicit or hybrid flow
         private String accessToken;
         private String idToken;
+        private String tokenType;
+        private String expiresIn;
 
         public AuthorizationEndpointResponse(OAuthClient client) {
             boolean fragment;
@@ -1286,6 +1482,8 @@ public class OAuthClient {
             sessionState = params.get(OAuth2Constants.SESSION_STATE);
             accessToken = params.get(OAuth2Constants.ACCESS_TOKEN);
             idToken = params.get(OAuth2Constants.ID_TOKEN);
+            tokenType = params.get(OAuth2Constants.TOKEN_TYPE);
+            expiresIn = params.get(OAuth2Constants.EXPIRES_IN);
         }
 
         public boolean isRedirected() {
@@ -1319,6 +1517,86 @@ public class OAuthClient {
         public String getIdToken() {
             return idToken;
         }
+
+        public String getTokenType() {
+            return tokenType;
+        }
+
+        public String getExpiresIn() {
+            return expiresIn;
+        }
+    }
+
+    public static class AuthenticationRequestAcknowledgement {
+        private int statusCode;
+        private Map<String, String> headers;
+
+        private String authReqId;
+        private int expiresIn;
+        private int interval = -1;
+
+        private String error;
+        private String errorDescription;
+
+        public AuthenticationRequestAcknowledgement(CloseableHttpResponse response) throws Exception {
+            try {
+                statusCode = response.getStatusLine().getStatusCode();
+
+                headers = new HashMap<>();
+
+                for (Header h : response.getAllHeaders()) {
+                    headers.put(h.getName(), h.getValue());
+                }
+
+                Header[] contentTypeHeaders = response.getHeaders("Content-Type");
+                String contentType = (contentTypeHeaders != null && contentTypeHeaders.length > 0) ? contentTypeHeaders[0].getValue() : null;
+                if (!"application/json".equals(contentType)) {
+                    Assert.fail("Invalid content type. Status: " + statusCode + ", contentType: " + contentType);
+                }
+
+                String s = IOUtils.toString(response.getEntity().getContent(), "UTF-8");
+                Map responseJson = JsonSerialization.readValue(s, Map.class);
+                if (statusCode == 200) {
+                    authReqId = (String) responseJson.get("auth_req_id");
+                    expiresIn = (Integer) responseJson.get("expires_in");
+                    if (responseJson.containsKey("interval")) interval = (Integer) responseJson.get("interval");
+                } else {
+                    error = (String) responseJson.get(OAuth2Constants.ERROR);
+                    errorDescription = responseJson.containsKey(OAuth2Constants.ERROR_DESCRIPTION) ? (String) responseJson.get(OAuth2Constants.ERROR_DESCRIPTION) : null;
+                }
+            } finally {
+                response.close();
+            }
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
+        }
+
+        public String getAuthReqId() {
+            return authReqId;
+        }
+
+        public int getExpiresIn() {
+            return expiresIn;
+        }
+
+        public int getInterval() {
+            return interval;
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public String getErrorDescription() {
+            return errorDescription;
+        }
+
     }
 
     public static class AccessTokenResponse {
@@ -1376,10 +1654,10 @@ public class OAuthClient {
                             case OAuth2Constants.ISSUED_TOKEN_TYPE:
                                 issuedTokenType = (String) entry.getValue();
                                 break;
-                            case "token_type":
+                            case OAuth2Constants.TOKEN_TYPE:
                                 tokenType = (String) entry.getValue();
                                 break;
-                            case "expires_in":
+                            case OAuth2Constants.EXPIRES_IN:
                                 expiresIn = (Integer) entry.getValue();
                                 break;
                             case "refresh_expires_in":
@@ -1544,4 +1822,94 @@ public class OAuthClient {
 
     }
 
+    public static class DeviceAuthorizationResponse {
+        private int statusCode;
+
+        private String deviceCode;
+        private String userCode;
+        private String verificationUri;
+        private String verificationUriComplete;
+        private int expiresIn;
+        private int interval;
+
+        private String error;
+        private String errorDescription;
+
+        private Map<String, String> headers;
+
+        public DeviceAuthorizationResponse(CloseableHttpResponse response) throws Exception {
+            try {
+                statusCode = response.getStatusLine().getStatusCode();
+
+                headers = new HashMap<>();
+
+                for (Header h : response.getAllHeaders()) {
+                    headers.put(h.getName(), h.getValue());
+                }
+
+                Header[] contentTypeHeaders = response.getHeaders("Content-Type");
+                String contentType = (contentTypeHeaders != null && contentTypeHeaders.length > 0) ? contentTypeHeaders[0].getValue() : null;
+                if (!"application/json".equals(contentType)) {
+                    Assert.fail("Invalid content type. Status: " + statusCode + ", contentType: " + contentType);
+                }
+
+                String s = IOUtils.toString(response.getEntity().getContent(), "UTF-8");
+                Map responseJson = JsonSerialization.readValue(s, Map.class);
+
+                if (statusCode == 200) {
+                    deviceCode = (String) responseJson.get("device_code");
+                    userCode = (String) responseJson.get("user_code");
+                    verificationUri = (String) responseJson.get("verification_uri");
+                    verificationUriComplete = (String) responseJson.get("verification_uri_complete");
+                    expiresIn = (Integer) responseJson.get("expires_in");
+                    interval = (Integer) responseJson.get("interval");
+                } else {
+                    error = (String) responseJson.get(OAuth2Constants.ERROR);
+                    errorDescription = responseJson.containsKey(OAuth2Constants.ERROR_DESCRIPTION) ? (String) responseJson.get(OAuth2Constants.ERROR_DESCRIPTION) : null;
+                }
+            } finally {
+                response.close();
+            }
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public String getErrorDescription() {
+            return errorDescription;
+        }
+
+        public String getDeviceCode() {
+            return deviceCode;
+        }
+
+        public String getUserCode() {
+            return userCode;
+        }
+
+        public String getVerificationUri() {
+            return verificationUri;
+        }
+
+        public String getVerificationUriComplete() {
+            return verificationUriComplete;
+        }
+
+        public int getExpiresIn() {
+            return expiresIn;
+        }
+
+        public int getInterval() {
+            return interval;
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
+        }
+    }
 }

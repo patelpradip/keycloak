@@ -91,6 +91,12 @@ public class OIDCConfigurationRepresentation {
     @JsonProperty("token_endpoint_auth_signing_alg_values_supported")
     private List<String> tokenEndpointAuthSigningAlgValuesSupported;
 
+    @JsonProperty("introspection_endpoint_auth_methods_supported")
+    private List<String> introspectionEndpointAuthMethodsSupported;
+
+    @JsonProperty("introspection_endpoint_auth_signing_alg_values_supported")
+    private List<String> introspectionEndpointAuthSigningAlgValuesSupported;
+
     @JsonProperty("claims_supported")
     private List<String> claimsSupported;
 
@@ -135,6 +141,15 @@ public class OIDCConfigurationRepresentation {
 
     @JsonProperty("backchannel_logout_session_supported")
     private Boolean backchannelLogoutSessionSupported;
+
+    @JsonProperty("device_authorization_endpoint")
+    private String deviceAuthorizationEndpoint;
+
+    @JsonProperty("backchannel_token_delivery_modes_supported")
+    private List<String> backchannelTokenDeliveryModesSupported;
+
+    @JsonProperty("backchannel_authentication_endpoint")
+    private String backchannelAuthenticationEndpoint;
 
     protected Map<String, Object> otherClaims = new HashMap<String, Object>();
 
@@ -298,6 +313,23 @@ public class OIDCConfigurationRepresentation {
         this.tokenEndpointAuthSigningAlgValuesSupported = tokenEndpointAuthSigningAlgValuesSupported;
     }
 
+    public List<String> getIntrospectionEndpointAuthMethodsSupported() {
+        return introspectionEndpointAuthMethodsSupported;
+    }
+
+    public void setIntrospectionEndpointAuthMethodsSupported(List<String> introspectionEndpointAuthMethodsSupported) {
+        this.introspectionEndpointAuthMethodsSupported = introspectionEndpointAuthMethodsSupported;
+    }
+
+    public List<String> getIntrospectionEndpointAuthSigningAlgValuesSupported() {
+        return introspectionEndpointAuthSigningAlgValuesSupported;
+    }
+
+    public void setIntrospectionEndpointAuthSigningAlgValuesSupported(
+        List<String> introspectionEndpointAuthSigningAlgValuesSupported) {
+        this.introspectionEndpointAuthSigningAlgValuesSupported = introspectionEndpointAuthSigningAlgValuesSupported;
+    }
+
     public List<String> getClaimsSupported() {
         return claimsSupported;
     }
@@ -413,6 +445,22 @@ public class OIDCConfigurationRepresentation {
         this.backchannelLogoutSupported = backchannelLogoutSupported;
     }
 
+    public List<String> getBackchannelTokenDeliveryModesSupported() {
+        return backchannelTokenDeliveryModesSupported;
+    }
+
+    public void setBackchannelTokenDeliveryModesSupported(List<String> backchannelTokenDeliveryModesSupported) {
+        this.backchannelTokenDeliveryModesSupported = backchannelTokenDeliveryModesSupported;
+    }
+
+    public String getBackchannelAuthenticationEndpoint() {
+        return backchannelAuthenticationEndpoint;
+    }
+
+    public void setBackchannelAuthenticationEndpoint(String backchannelAuthenticationEndpoint) {
+        this.backchannelAuthenticationEndpoint = backchannelAuthenticationEndpoint;
+    }
+
     @JsonAnyGetter
     public Map<String, Object> getOtherClaims() {
         return otherClaims;
@@ -421,5 +469,13 @@ public class OIDCConfigurationRepresentation {
     @JsonAnySetter
     public void setOtherClaims(String name, Object value) {
         otherClaims.put(name, value);
+    }
+
+    public void setDeviceAuthorizationEndpoint(String deviceAuthorizationEndpoint) {
+        this.deviceAuthorizationEndpoint = deviceAuthorizationEndpoint;
+    }
+
+    public String getDeviceAuthorizationEndpoint() {
+        return deviceAuthorizationEndpoint;
     }
 }
