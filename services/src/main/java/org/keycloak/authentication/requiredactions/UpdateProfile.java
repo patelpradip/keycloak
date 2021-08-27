@@ -27,6 +27,7 @@ import org.keycloak.authentication.RequiredActionProvider;
 import org.keycloak.events.Details;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
+import org.keycloak.forms.login.LoginFormsProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.UserModel;
@@ -57,9 +58,7 @@ public class UpdateProfile implements RequiredActionProvider, RequiredActionFact
 
     @Override
     public void requiredActionChallenge(RequiredActionContext context) {
-        Response challenge = context.form()
-                .createResponse(UserModel.RequiredAction.UPDATE_PROFILE);
-        context.challenge(challenge);
+        context.challenge(createResponse(context, null, null));
     }
 
     @Override
@@ -85,7 +84,6 @@ public class UpdateProfile implements RequiredActionProvider, RequiredActionFact
                     event.detail(Details.PREVIOUS_LAST_NAME, oldLastName).detail(Details.UPDATED_LAST_NAME, user.getLastName());
                 }
                 if (attributeName.equals(UserModel.EMAIL)) {
-                    user.setEmailVerified(false);
                     event.detail(Details.PREVIOUS_EMAIL, oldEmail).detail(Details.UPDATED_EMAIL, user.getEmail());
                 }
             });
@@ -94,12 +92,26 @@ public class UpdateProfile implements RequiredActionProvider, RequiredActionFact
         } catch (ValidationException pve) {
             List<FormMessage> errors = Validation.getFormErrorsFromValidation(pve.getErrors());
 
-            Response challenge = context.form()
-                    .setErrors(errors)
-                    .setFormData(formData)
-                    .createResponse(UserModel.RequiredAction.UPDATE_PROFILE);
-            context.challenge(challenge);
+            context.challenge(createResponse(context, formData, errors));
         }
+    }
+
+    protected UserModel.RequiredAction getResponseAction(){
+        return UserModel.RequiredAction.UPDATE_PROFILE;
+    }
+    
+    protected Response createResponse(RequiredActionContext context, MultivaluedMap<String, String> formData, List<FormMessage> errors) {
+        LoginFormsProvider form = context.form();
+
+        if (errors != null && !errors.isEmpty()) {
+            form.setErrors(errors);
+        }
+        
+        if(formData != null) {
+            form = form.setFormData(formData);
+        }
+
+        return form.createResponse(getResponseAction());
     }
 
 

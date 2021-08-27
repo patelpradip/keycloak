@@ -28,6 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelException;
 import org.keycloak.models.UserModel;
 
@@ -41,15 +42,20 @@ import org.keycloak.models.UserModel;
  */
 public final class DefaultUserProfile implements UserProfile {
 
+    protected final UserProfileMetadata metadata;
     private final Function<Attributes, UserModel> userSupplier;
     private final Attributes attributes;
+    private final KeycloakSession session;
     private boolean validated;
     private UserModel user;
 
-    public DefaultUserProfile(Attributes attributes, Function<Attributes, UserModel> userCreator, UserModel user) {
+    public DefaultUserProfile(UserProfileMetadata metadata, Attributes attributes, Function<Attributes, UserModel> userCreator, UserModel user,
+            KeycloakSession session) {
+        this.metadata = metadata;
         this.userSupplier = userCreator;
         this.attributes = attributes;
         this.user = user;
+        this.session = session;
     }
 
     @Override
@@ -57,8 +63,7 @@ public final class DefaultUserProfile implements UserProfile {
         ValidationException validationException = new ValidationException();
 
         for (String attributeName : attributes.nameSet()) {
-            this.attributes.validate(attributeName,
-                    (error) -> validationException.addError(error));
+            this.attributes.validate(attributeName, validationException);
         }
 
         if (validationException.hasError()) {
@@ -110,6 +115,11 @@ public final class DefaultUserProfile implements UserProfile {
 
                 if (currentValue.size() != updatedValue.size() || !currentValue.containsAll(updatedValue)) {
                     user.setAttribute(name, updatedValue);
+                    
+                    if(UserModel.EMAIL.equals(name) && metadata.getContext().isResetEmailVerified()) {
+                        user.setEmailVerified(false);
+                    }
+                    
                     for (BiConsumer<String, UserModel> listener : changeListener) {
                         listener.accept(name, user);
                     }
@@ -121,6 +131,7 @@ public final class DefaultUserProfile implements UserProfile {
             // the attribute map was sent.
             if (removeAttributes) {
                 Set<String> attrsToRemove = new HashSet<>(user.getAttributes().keySet());
+
                 attrsToRemove.removeAll(attributes.nameSet());
 
                 for (String attr : attrsToRemove) {

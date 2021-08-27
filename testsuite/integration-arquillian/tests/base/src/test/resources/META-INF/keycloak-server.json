@@ -219,7 +219,8 @@
     },
 
     "userProfile": {
-        "legacy-user-profile": {
+        "provider": "${keycloak.userProfile.provider:}",
+        "declarative-user-profile": {
             "read-only-attributes": [ "deniedFoo", "deniedBar*", "deniedSome/thing", "deniedsome*thing" ],
             "admin-read-only-attributes": [ "deniedSomeAdmin" ]
         }

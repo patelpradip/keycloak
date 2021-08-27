@@ -284,8 +284,8 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
     public Map<ClientModel, Set<String>> getAllRedirectUrisOfEnabledClients(RealmModel realm) {
         TypedQuery<Map> query = em.createNamedQuery("getAllRedirectUrisOfEnabledClients", Map.class);
         query.setParameter("realm", realm.getId());
-        return query.getResultStream()
-          .filter(s -> s.get("client") != null)
+        return closing(query.getResultStream()
+          .filter(s -> s.get("client") != null))
           .collect(
             Collectors.groupingBy(
               s -> new ClientAdapter(realm, em, session, (ClientEntity) s.get("client")),
@@ -868,7 +868,8 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
         // Defaults to openid-connect
         String clientProtocol = client.getProtocol() == null ? OIDCLoginProtocol.LOGIN_PROTOCOL : client.getProtocol();
 
-        Map<String, ClientScopeModel> existingClientScopes = getClientScopes(realm, client, defaultScope);
+        Map<String, ClientScopeModel> existingClientScopes = getClientScopes(realm, client, true);
+        existingClientScopes.putAll(getClientScopes(realm, client, false));
 
         clientScopes.stream()
             .filter(clientScope -> ! existingClientScopes.containsKey(clientScope.getName()))
@@ -902,7 +903,7 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
         query.setParameter("clientId", client.getId());
         query.setParameter("defaultScope", defaultScope);
 
-        return query.getResultStream()
+        return closing(query.getResultStream())
                 .map(clientScopeId -> session.clientScopes().getClientScopeById(realm, clientScopeId))
                 .filter(Objects::nonNull)
                 .filter(clientScope -> Objects.equals(clientScope.getProtocol(), clientProtocol))

@@ -19,7 +19,6 @@ package org.keycloak.protocol.oidc;
 
 import org.keycloak.authentication.authenticators.client.X509ClientAuthenticator;
 import org.keycloak.jose.jws.Algorithm;
-import org.keycloak.models.CibaConfig;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.Constants;
 import org.keycloak.representations.idm.ClientRepresentation;
@@ -75,7 +74,23 @@ public class OIDCAdvancedConfigWrapper {
         String algStr = alg==null ? null : alg.toString();
         setAttribute(OIDCConfigAttributes.REQUEST_OBJECT_SIGNATURE_ALG, algStr);
     }
-    
+
+    public void setRequestObjectEncryptionAlg(String algorithm) {
+        setAttribute(OIDCConfigAttributes.REQUEST_OBJECT_ENCRYPTION_ALG, algorithm);
+    }
+
+    public String getRequestObjectEncryptionAlg() {
+        return getAttribute(OIDCConfigAttributes.REQUEST_OBJECT_ENCRYPTION_ALG);
+    }
+
+    public String getRequestObjectEncryptionEnc() {
+        return getAttribute(OIDCConfigAttributes.REQUEST_OBJECT_ENCRYPTION_ENC);
+    }
+
+    public void setRequestObjectEncryptionEnc(String algorithm) {
+        setAttribute(OIDCConfigAttributes.REQUEST_OBJECT_ENCRYPTION_ENC, algorithm);
+    }
+
     public String getRequestObjectRequired() {
         return getAttribute(OIDCConfigAttributes.REQUEST_OBJECT_REQUIRED);
     }
@@ -108,6 +123,24 @@ public class OIDCAdvancedConfigWrapper {
 
     public void setJwksUrl(String jwksUrl) {
         setAttribute(OIDCConfigAttributes.JWKS_URL, jwksUrl);
+    }
+
+    public boolean isUseJwksString() {
+        String useJwksString = getAttribute(OIDCConfigAttributes.USE_JWKS_STRING);
+        return Boolean.parseBoolean(useJwksString);
+    }
+
+    public void setUseJwksString(boolean useJwksString) {
+        String val = String.valueOf(useJwksString);
+        setAttribute(OIDCConfigAttributes.USE_JWKS_STRING, val);
+    }
+
+    public String getJwksString() {
+        return getAttribute(OIDCConfigAttributes.JWKS_STRING);
+    }
+
+    public void setJwksString(String jwksString) {
+        setAttribute(OIDCConfigAttributes.JWKS_STRING, jwksString);
     }
 
     public boolean isExcludeSessionStateFromAuthResponse() {
@@ -193,6 +226,29 @@ public class OIDCAdvancedConfigWrapper {
 
     public void setIdTokenEncryptedResponseEnc(String encName) {
         setAttribute(OIDCConfigAttributes.ID_TOKEN_ENCRYPTED_RESPONSE_ENC, encName);
+    }
+
+    public String getAuthorizationSignedResponseAlg() {
+        return getAttribute(OIDCConfigAttributes.AUTHORIZATION_SIGNED_RESPONSE_ALG);
+    }
+    public void setAuthorizationSignedResponseAlg(String algName) {
+        setAttribute(OIDCConfigAttributes.AUTHORIZATION_SIGNED_RESPONSE_ALG, algName);
+    }
+
+    public String getAuthorizationEncryptedResponseAlg() {
+        return getAttribute(OIDCConfigAttributes.AUTHORIZATION_ENCRYPTED_RESPONSE_ALG);
+    }
+
+    public void setAuthorizationEncryptedResponseAlg(String algName) {
+        setAttribute(OIDCConfigAttributes.AUTHORIZATION_ENCRYPTED_RESPONSE_ALG, algName);
+    }
+
+    public String getAuthorizationEncryptedResponseEnc() {
+        return getAttribute(OIDCConfigAttributes.AUTHORIZATION_ENCRYPTED_RESPONSE_ENC);
+    }
+
+    public void setAuthorizationEncryptedResponseEnc(String encName) {
+        setAttribute(OIDCConfigAttributes.AUTHORIZATION_ENCRYPTED_RESPONSE_ENC, encName);
     }
 
     public String getTokenEndpointAuthSigningAlg() {
