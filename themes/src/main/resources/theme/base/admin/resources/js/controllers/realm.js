@@ -187,6 +187,10 @@ module.controller('RealmDropdownCtrl', function($scope, Realm, Current, Auth, $l
 //    Current.realms = Realm.get();
     $scope.current = Current;
 
+    $scope.isCreateEndpoint = function(endpoint) {
+        return $scope.path.length > 1 && $scope.path[0] === 'create' && $scope.path[1] === endpoint;
+    }
+
     $scope.changeRealm = function(selectedRealm) {
         $location.url("/realms/" + selectedRealm);
     }
@@ -280,7 +284,10 @@ module.controller('RealmDetailCtrl', function($scope, Current, Realm, realm, ser
         }
     }
     $scope.realm = angular.copy(realm);
-    $scope.realm.attributes['userProfileEnabled'] = $scope.realm.attributes['userProfileEnabled'] == 'true';
+    
+    if ($scope.realm.attributes != null) {
+    	$scope.realm.attributes['userProfileEnabled'] = $scope.realm.attributes['userProfileEnabled'] == 'true';
+    }
 
     var oldCopy = angular.copy($scope.realm);
     $scope.realmCopy = oldCopy;
@@ -553,8 +560,21 @@ module.controller('RealmLocalizationCtrl', function($scope, Current, $location, 
 
     $scope.updateRealmSpecificLocalizationTexts = function() {
         RealmSpecificLocalizationTexts.get({id: realm.realm, locale: $scope.selectedRealmSpecificLocales }, function (updated) {
-            $scope.localizationTexts = updated;
+            $scope.localizationTexts = getSortedArrayByKeyFromObject(updated);
         })
+    }
+
+    function getSortedArrayByKeyFromObject(object) {
+        const keys = Object.keys(object).sort(function (a, b) {
+            return a.localeCompare(b, locale);
+        });
+        return keys.reduce(function (result, key) {
+            const value = object[key];
+            if (typeof value !== 'string') {
+                return result;
+            }
+            return result.concat([[key, value]]);
+        }, []);
     }
 
     $scope.removeLocalizationText = function(key) {
@@ -1325,8 +1345,8 @@ module.controller('RealmTokenDetailCtrl', function($scope, Realm, realm, $http, 
     $scope.realm.actionTokenGeneratedByAdminLifespan = TimeUnit2.asUnit(realm.actionTokenGeneratedByAdminLifespan);
     $scope.realm.actionTokenGeneratedByUserLifespan = TimeUnit2.asUnit(realm.actionTokenGeneratedByUserLifespan);
     $scope.realm.oauth2DeviceCodeLifespan = TimeUnit2.asUnit(realm.oauth2DeviceCodeLifespan);
-    $scope.requestUriLifespan = TimeUnit2.asUnit(realm.attributes.parRequestUriLifespan);
-    $scope.realm.attributes = realm.attributes
+    $scope.realm.attributes.parRequestUriLifespan = TimeUnit2.asUnit(realm.attributes.parRequestUriLifespan);
+    $scope.realm.attributes = realm.attributes;
 
     var oldCopy = angular.copy($scope.realm);
     $scope.changed = false;
@@ -1335,10 +1355,6 @@ module.controller('RealmTokenDetailCtrl', function($scope, Realm, realm, $http, 
         if (!angular.equals($scope.realm, oldCopy)) {
             $scope.changed = true;
         }
-    }, true);
-    
-    $scope.$watch('requestUriLifespan', function () {
-        $scope.changed = true;
     }, true);
     
     $scope.$watch('actionLifespanId', function () {
@@ -1390,7 +1406,7 @@ module.controller('RealmTokenDetailCtrl', function($scope, Realm, realm, $http, 
         $scope.realm.actionTokenGeneratedByAdminLifespan = $scope.realm.actionTokenGeneratedByAdminLifespan.toSeconds();
         $scope.realm.actionTokenGeneratedByUserLifespan = $scope.realm.actionTokenGeneratedByUserLifespan.toSeconds();
         $scope.realm.oauth2DeviceCodeLifespan = $scope.realm.oauth2DeviceCodeLifespan.toSeconds();
-        $scope.realm.attributes.parRequestUriLifespan = $scope.requestUriLifespan.toSeconds().toString();
+        $scope.realm.attributes.parRequestUriLifespan = $scope.realm.attributes.parRequestUriLifespan.toSeconds();
 
         Realm.update($scope.realm, function () {
             $route.reload();
@@ -1763,8 +1779,12 @@ module.controller('RealmUserProfileCtrl', function($scope, Realm, realm, clientS
         for (let key in validator.config) {
             let values = validator.config[key];
 
-            for (let k in values) {
-                config[key] = values[k];
+            if (Array.isArray(values)) {
+                config[key] = values;
+            } else {
+                for (let k in values) {
+                    config[key] = values[k];
+                }
             }
         }
 

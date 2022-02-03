@@ -247,8 +247,12 @@ public class ClientResource {
         auth.clients().requireConfigure(client);
 
         logger.debug("regenerateSecret");
-        UserCredentialModel cred = KeycloakModelUtils.generateSecret(client);
-        CredentialRepresentation rep = ModelToRepresentation.toRepresentation(cred);
+        String secret = KeycloakModelUtils.generateSecret(client);
+
+        CredentialRepresentation rep = new CredentialRepresentation();
+        rep.setType(CredentialRepresentation.SECRET);
+        rep.setValue(secret);
+
         adminEvent.operation(OperationType.ACTION).resourcePath(session.getContext().getUri()).representation(rep).success();
         return rep;
     }
@@ -343,6 +347,9 @@ public class ClientResource {
         ClientScopeModel clientScope = realm.getClientScopeById(clientScopeId);
         if (clientScope == null) {
             throw new javax.ws.rs.NotFoundException("Client scope not found");
+        }
+        if (defaultScope && clientScope.isDynamicScope()) {
+            throw new ErrorResponseException("invalid_request", "Can't assign a Dynamic Scope to a Client as a Default Scope", Response.Status.BAD_REQUEST);
         }
         client.addClientScope(clientScope, defaultScope);
 

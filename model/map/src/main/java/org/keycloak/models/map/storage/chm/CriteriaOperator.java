@@ -44,6 +44,7 @@ class CriteriaOperator {
     private static final Logger LOG = Logger.getLogger(CriteriaOperator.class.getSimpleName());
 
     private static final Predicate<Object> ALWAYS_FALSE = o -> false;
+    private static final Predicate<Object> ALWAYS_TRUE = o -> true;
 
     static {
         OPERATORS.put(Operator.EQ, CriteriaOperator::eq);
@@ -144,10 +145,10 @@ class CriteriaOperator {
         if (value.length == 1) {
             final Object value0 = value[0];
             if (value0 instanceof Collection) {
-                operand = (Collection) value0;
+                operand = (Collection<?>) value0;
             } else if (value0 instanceof Stream) {
-                try (Stream valueS = (Stream) value0) {
-                    operand = (Set) valueS.collect(Collectors.toSet());
+                try (Stream<?> valueS = (Stream<?>) value0) {
+                    operand = valueS.collect(Collectors.toSet());
                 }
             } else {
                 operand = Collections.singleton(value0);
@@ -190,6 +191,11 @@ class CriteriaOperator {
         Object value0 = getFirstArrayElement(value);
         if (value0 instanceof String) {
             String sValue = (String) value0;
+
+            if(Pattern.matches("^%+$", sValue)) {
+                return ALWAYS_TRUE;
+            }
+
             boolean anyBeginning = sValue.startsWith("%");
             boolean anyEnd = sValue.endsWith("%");
 
@@ -210,6 +216,11 @@ class CriteriaOperator {
         Object value0 = getFirstArrayElement(value);
         if (value0 instanceof String) {
             String sValue = (String) value0;
+
+            if(Pattern.matches("^%+$", sValue)) {
+                return ALWAYS_TRUE;
+            }
+
             boolean anyBeginning = sValue.startsWith("%");
             boolean anyEnd = sValue.endsWith("%");
 

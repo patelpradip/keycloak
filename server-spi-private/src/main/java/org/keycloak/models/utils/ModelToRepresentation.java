@@ -17,6 +17,7 @@
 
 package org.keycloak.models.utils;
 
+import org.jboss.logging.Logger;
 import org.keycloak.authorization.AuthorizationProvider;
 import org.keycloak.authorization.model.PermissionTicket;
 import org.keycloak.authorization.model.Policy;
@@ -46,8 +47,10 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -101,6 +104,7 @@ public class ModelToRepresentation {
         REALM_EXCLUDED_ATTRIBUTES.add(Constants.CLIENT_PROFILES);
     }
 
+    private static final Logger LOG = Logger.getLogger(ModelToRepresentation.class);
 
     public static void buildGroupPath(StringBuilder sb, GroupModel group) {
         if (group.getParent() != null) {
@@ -312,6 +316,16 @@ public class ModelToRepresentation {
         return rep;
     }
 
+    public static RealmRepresentation toBriefRepresentation(RealmModel realm) {
+        RealmRepresentation rep = new RealmRepresentation();
+        rep.setId(realm.getId());
+        rep.setRealm(realm.getName());
+        rep.setDisplayName(realm.getDisplayName());
+        rep.setDisplayNameHtml(realm.getDisplayNameHtml());
+        rep.setEnabled(realm.isEnabled());
+        return rep;
+    }
+
     public static RealmRepresentation toRepresentation(KeycloakSession session, RealmModel realm, boolean internal) {
         RealmRepresentation rep = new RealmRepresentation();
         rep.setId(realm.getId());
@@ -474,7 +488,8 @@ public class ModelToRepresentation {
 
         session.clientPolicy().updateRealmRepresentationFromModel(realm, rep);
 
-        rep.setAttributes(stripRealmAttributesIncludedAsFields(realm.getAttributes()));
+        // Append realm attributes to representation
+        rep.getAttributes().putAll(stripRealmAttributesIncludedAsFields(realm.getAttributes()));
 
         if (!internal) {
             rep = StripSecretsUtils.strip(rep);
@@ -541,6 +556,25 @@ public class ModelToRepresentation {
         rep.setAdminEventsDetailsEnabled(realm.isAdminEventsDetailsEnabled());
 
         return rep;
+    }
+
+    /**
+     * Handles exceptions that occur when transforming the model to a representation and will remove
+     * all null objects from the stream.
+     *
+     * Entities that have been removed from the store or where a lazy loading exception occurs will not show up
+     * in the output stream.
+     */
+    public static <M, R> Stream<R> filterValidRepresentations(Stream<M> models, Function<M, R> transformer) {
+        return models.map(m -> {
+                    try {
+                        return transformer.apply(m);
+                    } catch (ModelIllegalStateException e) {
+                        LOG.warn("unable to retrieve model information, skipping entity", e);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull);
     }
 
     public static CredentialRepresentation toRepresentation(UserCredentialModel cred) {
