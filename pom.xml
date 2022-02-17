@@ -177,6 +177,7 @@
         <frontend.plugin.version>1.12.0</frontend.plugin.version>
         <docker.maven.plugin.version>0.28.0</docker.maven.plugin.version>
         <verifier.plugin.version>1.1</verifier.plugin.version>
+        <license-maven-plugin.version>2.0.1.alfresco-1</license-maven-plugin.version>
 
         <!-- Surefire Settings -->
         <surefire.memory.Xms>512m</surefire.memory.Xms>
@@ -1916,6 +1917,32 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>license-maven-plugin</artifactId>
+              <version>${license-maven-plugin.version}</version>
+              <executions>
+                <execution>
+                  <id>third-party-licenses</id>
+                  <goals>
+                    <goal>add-third-party</goal>
+                  </goals>
+                  <phase>generate-resources</phase>
+                  <configuration>
+                    <failOnMissing>true</failOnMissing>
+                    <excludedScopes>provided,test</excludedScopes>
+                    <excludedGroups>org.alfresco</excludedGroups>
+                    <!-- We expect this to fail but it doesn't matter as we're not including all Keycloak modules in our products. -->
+                    <failIfWarning>false</failIfWarning>
+                    <includedLicenses>https://raw.githubusercontent.com/Alfresco/third-party-license-overrides/master/includedLicenses.txt</includedLicenses>
+                    <licenseMergesUrl>https://raw.githubusercontent.com/Alfresco/third-party-license-overrides/master/licenseMerges.txt</licenseMergesUrl>
+                    <overrideUrl>https://raw.githubusercontent.com/Alfresco/third-party-license-overrides/master/override-THIRD-PARTY.properties</overrideUrl>
+                  </configuration>
+                </execution>
+              </executions>
+            </plugin>
+        </plugins>
     </build>
 
     <profiles>
