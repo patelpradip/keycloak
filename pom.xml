@@ -242,6 +242,14 @@
         </repository>
     </distributionManagement>
 
+    <pluginRepositories>
+        <pluginRepository>
+            <id>alfresco-internal-plugin</id>
+            <name>Alfresco Internal Repository</name>
+            <url>https://artifacts.alfresco.com/nexus/content/groups/public</url>
+        </pluginRepository>
+    </pluginRepositories>
+
     <issueManagement>
         <system>JIRA</system>
         <url>https://github.com/keycloak/keycloak/issues</url>
