@@ -234,16 +234,28 @@ public class ConfigurationTest {
 
     @Test
     public void testDatabaseDefaults() {
-        System.setProperty(CLI_ARGS, "--db=h2-file");
+        System.setProperty(CLI_ARGS, "--db=dev-file");
         SmallRyeConfig config = createConfig();
         assertEquals(QuarkusH2Dialect.class.getName(), config.getConfigValue("quarkus.hibernate-orm.dialect").getValue());
         assertEquals("jdbc:h2:file:~/data/h2/keycloakdb;;AUTO_SERVER=TRUE", config.getConfigValue("quarkus.datasource.jdbc.url").getValue());
 
-        System.setProperty(CLI_ARGS, "--db=h2-mem");
+        System.setProperty(CLI_ARGS, "--db=dev-mem");
         config = createConfig();
         assertEquals(QuarkusH2Dialect.class.getName(), config.getConfigValue("quarkus.hibernate-orm.dialect").getValue());
         assertEquals("jdbc:h2:mem:keycloakdb", config.getConfigValue("quarkus.datasource.jdbc.url").getValue());
         assertEquals("h2", config.getConfigValue("quarkus.datasource.db-kind").getValue());
+
+        System.setProperty(CLI_ARGS, "--db=dev-mem" + ARG_SEPARATOR + "--db-username=other");
+        config = createConfig();
+        assertEquals("sa", config.getConfigValue("quarkus.datasource.username").getValue());
+
+        System.setProperty(CLI_ARGS, "--db=postgres" + ARG_SEPARATOR + "--db-username=other");
+        config = createConfig();
+        assertEquals("other", config.getConfigValue("quarkus.datasource.username").getValue());
+
+        System.setProperty(CLI_ARGS, "--db=postgres");
+        config = createConfig();
+        assertEquals(null, config.getConfigValue("quarkus.datasource.username").getValue());
     }
 
     @Test
@@ -280,7 +292,7 @@ public class ConfigurationTest {
     public void testDatabaseProperties() {
         System.setProperty("kc.db-url-properties", ";;test=test;test1=test1");
         System.setProperty("kc.db-url-path", "test-dir");
-        System.setProperty(CLI_ARGS, "--db=h2-file");
+        System.setProperty(CLI_ARGS, "--db=dev-file");
         SmallRyeConfig config = createConfig();
         assertEquals(QuarkusH2Dialect.class.getName(), config.getConfigValue("quarkus.hibernate-orm.dialect").getValue());
         assertEquals("jdbc:h2:file:test-dir" + File.separator + "data" + File.separator + "h2" + File.separator + "keycloakdb;;test=test;test1=test1", config.getConfigValue("quarkus.datasource.jdbc.url").getValue());
@@ -368,13 +380,36 @@ public class ConfigurationTest {
     public void testDatabaseDriverSetExplicitly() {
         System.setProperty(CLI_ARGS, "--db=mssql" + ARG_SEPARATOR + "--db-url=jdbc:sqlserver://localhost/keycloak");
         System.setProperty("kc.db-driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver");
-        System.setProperty("kc.db-tx-type", "enabled");
+        System.setProperty("kc.transaction-xa-enabled", "false");
         assertTrue(System.getProperty(CLI_ARGS, "").contains("mssql"));
         SmallRyeConfig config = createConfig();
         assertEquals("jdbc:sqlserver://localhost/keycloak", config.getConfigValue("quarkus.datasource.jdbc.url").getValue());
         assertEquals("mssql", config.getConfigValue("quarkus.datasource.db-kind").getValue());
         assertEquals("com.microsoft.sqlserver.jdbc.SQLServerDriver", config.getConfigValue("quarkus.datasource.jdbc.driver").getValue());
         assertEquals("enabled", config.getConfigValue("quarkus.datasource.jdbc.transactions").getValue());
+    }
+
+    @Test
+    public void testTransactionTypeChangesDriver() {
+        System.setProperty(CLI_ARGS, "--db=mssql" + ARG_SEPARATOR + "--transaction-xa-enabled=false");
+        assertTrue(System.getProperty(CLI_ARGS, "").contains("mssql"));
+
+        SmallRyeConfig config = createConfig();
+        assertEquals("com.microsoft.sqlserver.jdbc.SQLServerDriver", config.getConfigValue("quarkus.datasource.jdbc.driver").getValue());
+        assertEquals("enabled", config.getConfigValue("quarkus.datasource.jdbc.transactions").getValue());
+
+        System.setProperty(CLI_ARGS, "--db=mssql" + ARG_SEPARATOR + "--transaction-xa-enabled=true");
+        assertTrue(System.getProperty(CLI_ARGS, "").contains("mssql"));
+        SmallRyeConfig config2 = createConfig();
+
+        assertEquals("com.microsoft.sqlserver.jdbc.SQLServerXADataSource", config2.getConfigValue("quarkus.datasource.jdbc.driver").getValue());
+        assertEquals("xa", config2.getConfigValue("quarkus.datasource.jdbc.transactions").getValue());
+    }
+    
+    public void testResolveHealthOption() {
+        System.setProperty(CLI_ARGS, "--health-enabled=true");
+        SmallRyeConfig config = createConfig();
+        assertEquals("true", config.getConfigValue("quarkus.datasource.health.enabled").getValue());
     }
 
     @Test
@@ -398,9 +433,6 @@ public class ConfigurationTest {
 
         Environment.setProfile("prod");
         assertEquals("true", createConfig().getConfigValue("kc.hostname-strict").getValue());
-
-        Environment.setProfile("prod");
-        assertEquals("false", createConfig().getConfigValue("kc.spi-sticky-session-encoder-infinispan-should-attach-route").getValue());
     }
 
     private Config.Scope initConfig(String... scope) {

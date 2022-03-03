@@ -24,6 +24,8 @@ public class Messages {
     public static final String DISPLAY_UNSUPPORTED = "displayUnsupported";
     public static final String LOGIN_TIMEOUT = "loginTimeout";
 
+    public static final String REAUTHENTICATE = "reauthenticate";
+
     public static final String INVALID_USER = "invalidUserMessage";
 
     public static final String INVALID_USERNAME = "invalidUsernameMessage";
@@ -241,6 +243,8 @@ public class Messages {
 
     public static final String BROKER_LINKING_SESSION_EXPIRED = "brokerLinkingSessionExpired";
 
+    public static final String ACR_NOT_FULFILLED = "acrNotFulfilled";
+
     public static final String PAGE_NOT_FOUND = "pageNotFound";
 
     public static final String INTERNAL_SERVER_ERROR = "internalServerError";
@@ -281,4 +285,5 @@ public class Messages {
     public static final String OAUTH2_DEVICE_VERIFICATION_FAILED = "oauth2DeviceVerificationFailedMessage";
     public static final String OAUTH2_DEVICE_VERIFICATION_FAILED_HEADER = "oauth2DeviceVerificationFailedHeader";
     public static final String OAUTH2_DEVICE_CONSENT_DENIED = "oauth2DeviceConsentDeniedMessage";
+
 }

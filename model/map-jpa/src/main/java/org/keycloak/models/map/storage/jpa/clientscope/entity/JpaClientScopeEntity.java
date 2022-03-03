@@ -19,7 +19,6 @@ package org.keycloak.models.map.storage.jpa.clientscope.entity;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +52,7 @@ import org.keycloak.models.map.storage.jpa.hibernate.jsonb.JsonbType;
  * therefore marked as non-insertable and non-updatable to instruct hibernate.
  */
 @Entity
-@Table(name = "client_scope", uniqueConstraints = {@UniqueConstraint(columnNames = {"realmId", "name"})})
+@Table(name = "kc_client_scope", uniqueConstraints = {@UniqueConstraint(columnNames = {"realmId", "name"})})
 @TypeDefs({@TypeDef(name = "jsonb", typeClass = JsonbType.class)})
 public class JpaClientScopeEntity extends AbstractClientScopeEntity implements JpaRootEntity {
 
@@ -82,7 +81,7 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
     @Basic(fetch = FetchType.LAZY)
     private String name;
 
-    @OneToMany(mappedBy = "clientScope", cascade = CascadeType.PERSIST, orphanRemoval = true)
+    @OneToMany(mappedBy = "root", cascade = CascadeType.PERSIST, orphanRemoval = true)
     private final Set<JpaClientScopeAttributeEntity> attributes = new HashSet<>();
 
     /**
@@ -113,17 +112,6 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
         return metadata != null;
     }
 
-    /**
-     * In case of any update on entity, we want to update the entityVerion
-     * to current one.
-     */
-    private void checkEntityVersionForUpdate() {
-        Integer ev = getEntityVersion();
-        if (ev != null && ev < CURRENT_SCHEMA_VERSION_CLIENT_SCOPE) {
-            setEntityVersion(CURRENT_SCHEMA_VERSION_CLIENT_SCOPE);
-        }
-    }
-
     @Override
     public Integer getEntityVersion() {
         if (isMetadataInitialized()) return metadata.getEntityVersion();
@@ -133,6 +121,11 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
     @Override
     public void setEntityVersion(Integer entityVersion) {
         metadata.setEntityVersion(entityVersion);
+    }
+
+    @Override
+    public Integer getCurrentSchemaVersion() {
+        return CURRENT_SCHEMA_VERSION_CLIENT_SCOPE;
     }
 
     @Override
@@ -158,7 +151,6 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
 
     @Override
     public void setRealmId(String realmId) {
-        checkEntityVersionForUpdate();
         metadata.setRealmId(realmId);
     }
 
@@ -169,19 +161,16 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
 
     @Override
     public void addProtocolMapper(MapProtocolMapperEntity mapping) {
-        checkEntityVersionForUpdate();
         metadata.addProtocolMapper(mapping);
     }
 
     @Override
     public void addScopeMapping(String id) {
-        checkEntityVersionForUpdate();
         metadata.addScopeMapping(id);
     }
 
     @Override
     public void removeScopeMapping(String id) {
-        checkEntityVersionForUpdate();
         metadata.removeScopeMapping(id);
     }
 
@@ -197,7 +186,6 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
 
     @Override
     public void setDescription(String description) {
-        checkEntityVersionForUpdate();
         metadata.setDescription(description);
     }
 
@@ -209,7 +197,6 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
 
     @Override
     public void setName(String name) {
-        checkEntityVersionForUpdate();
         metadata.setName(name);
     }
 
@@ -220,24 +207,16 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
 
     @Override
     public void setProtocol(String protocol) {
-        checkEntityVersionForUpdate();
         metadata.setProtocol(protocol);
     }
 
     @Override
     public void removeAttribute(String name) {
-        checkEntityVersionForUpdate();
-        for (Iterator<JpaClientScopeAttributeEntity> iterator = attributes.iterator(); iterator.hasNext();) {
-            JpaClientScopeAttributeEntity attr = iterator.next();
-            if (Objects.equals(attr.getName(), name)) {
-                iterator.remove();
-            }
-        }
+        attributes.removeIf(attr -> Objects.equals(attr.getName(), name));
     }
 
     @Override
     public void setAttribute(String name, List<String> values) {
-        checkEntityVersionForUpdate();
         removeAttribute(name);
         for (String value : values) {
             JpaClientScopeAttributeEntity attribute = new JpaClientScopeAttributeEntity(this, name, value);
@@ -266,10 +245,7 @@ public class JpaClientScopeEntity extends AbstractClientScopeEntity implements J
 
     @Override
     public void setAttributes(Map<String, List<String>> attributes) {
-        checkEntityVersionForUpdate();
-        for (Iterator<JpaClientScopeAttributeEntity> iterator = this.attributes.iterator(); iterator.hasNext();) {
-            iterator.remove();
-        }
+        this.attributes.clear();
         if (attributes != null) {
             for (Map.Entry<String, List<String>> attrEntry : attributes.entrySet()) {
                 setAttribute(attrEntry.getKey(), attrEntry.getValue());
