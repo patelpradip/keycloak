@@ -41,15 +41,14 @@ VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
 log_info "Using keycloak version: $VERSION"
 
 KEYCLOAK_DIR="$WORK_DIR/distribution/server-dist/target"
-KEYCLOAK_DIST="$KEYCLOAK_DIR/keycloak-$VERSION.zip"
+KEYCLOAK_DIST="$KEYCLOAK_DIR/keycloak-legacy-$VERSION.zip"
 if [ ! -f "$KEYCLOAK_DIST" ]; then
     log_error "$KEYCLOAK_DIST does not exist."
 fi
 
-# TRAVIS_TAG env variable will be set automatically by travis-ci if the current build is for a git tag
-RELEASE_TAG="$TRAVIS_TAG"
+RELEASE_TAG="$GIT_TAG"
 if [ -z "$RELEASE_TAG" ]; then
-    log_info "TRAVIS_TAG environment variable is not set. Using version '$VERSION' instead."
+    log_info "GIT_TAG environment variable is not set. Using version '$VERSION' instead."
     RELEASE_TAG="$VERSION"
 else
     log_info "Using tag's name: $RELEASE_TAG"
@@ -94,6 +93,8 @@ fi
 
 log_info "Zipping 'keycloak-$RELEASE_TAG'..."
 zip -rq $KEYCLOAK_DIR/keycloak-$RELEASE_TAG.zip keycloak-$RELEASE_TAG
+
+export ARTIFACT_TO_SCAN=$KEYCLOAK_DIR/keycloak-$RELEASE_TAG.zip
 
 cd $WORK_DIR
 log_info "Cleanup temp directory..."

@@ -2,25 +2,19 @@
 
 function run-server-tests() {
     cd testsuite/integration-arquillian
-    mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml install -B -nsu -Pauth-server-wildfly -DskipTests
+    mvn install -B -nsu -Pauth-server-wildfly -DskipTests
 
     cd tests/base
-    mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml test -B -nsu -Pauth-server-wildfly "-Dtest=$1" $2 2>&1 | java -cp ../../../utils/target/classes org.keycloak.testsuite.LogTrimmer
+    mvn test -B -nsu -Pauth-server-wildfly "-Dtest=$1" $2 2>&1 | java -cp ../../../utils/target/classes org.keycloak.testsuite.LogTrimmer
     exit ${PIPESTATUS[0]}
 }
 
-travis_fold start source_checkout
-# The following lines are due to travis internals. See https://github.com/travis-ci/travis-ci/issues/6069#issuecomment-319710346
-git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-git fetch
-travis_fold end source_checkout
-
 function should-tests-run() {
     # If this is not a pull request, it is build as a branch update. In that case test everything
-    [ "$TRAVIS_PULL_REQUEST" = "false" ] && return 0
+    [ "$PULL_REQUEST" = "false" ] && return 0
 
     # Do not run tests for changes in documentation
-    git diff --name-only HEAD origin/${TRAVIS_BRANCH} |
+    git diff --name-only HEAD origin/${BRANCH_NAME} |
         egrep -iv '^misc/.*\.md$|^testsuite/.*\.md$'
 }
 
@@ -29,9 +23,9 @@ function should-tests-run() {
 
 function should-tests-run-crossdc-server() {
     # If this is not a pull request, it is build as a branch update. In that case test everything
-    [ "$TRAVIS_EVENT_TYPE" == "cron" ] && return 0
+    [ "$GITHUB_EVENT_NAME" == "schedule" ] && return 0
 
-    git diff --name-only HEAD origin/${TRAVIS_BRANCH} |
+    git diff --name-only HEAD origin/${BRANCH_NAME} |
         egrep -i 'crossdc|infinispan'
 }
 
@@ -40,9 +34,9 @@ function should-tests-run-crossdc-adapter() {
 }
 
 function should-tests-run-adapter-tests-authz() {
-    [ "$TRAVIS_PULL_REQUEST" = "false" ] && return 0
+    [ "$PULL_REQUEST" = "false" ] && return 0
 
-    git diff --name-only HEAD origin/${TRAVIS_BRANCH} |
+    git diff --name-only HEAD origin/${BRANCH_NAME} |
         egrep -i 'authz|authorization'
 }
 
@@ -57,21 +51,19 @@ if declare -f "should-tests-run-$1" > /dev/null && ! eval "should-tests-run-$1";
 fi
 
 if [ $1 == "unit" ]; then
-    mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml install -B -DskipTestsuite
+    mvn install -B -DskipTestsuite
     # Generate documentation to catch potential issues earlier than during the release
-    mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml install -B -nsu -f services -Pjboss-release
+    mvn install -B -nsu -f services -Pjboss-release
 else
-  travis_fold start compile_keycloak
   echo Compiling Keycloak
   ( while : ; do echo "Compiling, please wait..." ; sleep 50 ; done ) &
   COMPILING_PID=$!
   TMPFILE=`mktemp`
-  if ! mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml install -B -nsu -Pdistribution -DskipTests -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn &> "$TMPFILE"; then
+  if ! mvn install -B -nsu -Pdistribution -DskipTests -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn &> "$TMPFILE"; then
       cat "$TMPFILE"
       exit 1
   fi
   kill $COMPILING_PID
-  travis_fold end compile_keycloak
 fi
 
 if [ $1 == "server-group1" ]; then
@@ -100,20 +92,20 @@ fi
 
 if [ $1 == "crossdc-server" ]; then
     cd testsuite/integration-arquillian
-    mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml install -B -nsu -Pauth-servers-crossdc-jboss,auth-server-wildfly,cache-server-infinispan -DskipTests
+    mvn install -B -nsu -Pauth-servers-crossdc-jboss,auth-server-wildfly,cache-server-infinispan -DskipTests
 
     cd tests/base
-    mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml clean test -B -nsu -Pcache-server-infinispan,auth-servers-crossdc-jboss,auth-server-wildfly -Dtest=org.keycloak.testsuite.crossdc.**.* 2>&1 |
+    mvn clean test -B -nsu -Pcache-server-infinispan,auth-servers-crossdc-jboss,auth-server-wildfly -Dtest=org.keycloak.testsuite.crossdc.**.* 2>&1 |
         java -cp ../../../utils/target/classes org.keycloak.testsuite.LogTrimmer
     exit ${PIPESTATUS[0]}
 fi
 
 if [ $1 == "crossdc-adapter" ]; then
     cd testsuite/integration-arquillian
-    mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml install -B -nsu -Pauth-servers-crossdc-jboss,auth-server-wildfly,cache-server-infinispan,app-server-wildfly -DskipTests
+    mvn install -B -nsu -Pauth-servers-crossdc-jboss,auth-server-wildfly,cache-server-infinispan,app-server-wildfly -DskipTests
 
     cd tests/base
-    mvn -s $TRAVIS_BUILD_DIR/maven-settings.xml clean test -B -nsu -Pcache-server-infinispan,auth-servers-crossdc-jboss,auth-server-wildfly,app-server-wildfly -Dtest=org.keycloak.testsuite.adapter.**.crossdc.**.* 2>&1 |
+    mvn clean test -B -nsu -Pcache-server-infinispan,auth-servers-crossdc-jboss,auth-server-wildfly,app-server-wildfly -Dtest=org.keycloak.testsuite.adapter.**.crossdc.**.* 2>&1 |
         java -cp ../../../utils/target/classes org.keycloak.testsuite.LogTrimmer
     exit ${PIPESTATUS[0]}
 fi

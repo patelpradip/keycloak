@@ -1,0 +1,51 @@
+diff --git a/.ci/add-alfresco-theme.sh b/.ci/add-alfresco-theme.sh
+index 2b7cccd6e2..8b16db5526 100644
+--- a/.ci/add-alfresco-theme.sh
++++ b/.ci/add-alfresco-theme.sh
+@@ -40,8 +40,8 @@ log_info "Get keycloak version from the project pom.xml"
+ VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+ log_info "Using keycloak version: $VERSION"
+ 
+-KEYCLOAK_DIR="$WORK_DIR/distribution/server-dist/target"
+-KEYCLOAK_DIST="$KEYCLOAK_DIR/keycloak-legacy-$VERSION.zip"
++KEYCLOAK_DIR="$WORK_DIR/distribution/server-legacy-dist/target"
++KEYCLOAK_DIST="$KEYCLOAK_DIR/keycloak-$VERSION.zip"
+ if [ ! -f "$KEYCLOAK_DIST" ]; then
+     log_error "$KEYCLOAK_DIST does not exist."
+ fi
+diff --git a/.ci/build-server.sh b/.ci/build-server.sh
+index bb895bec2b..34cd70174d 100644
+--- a/.ci/build-server.sh
++++ b/.ci/build-server.sh
+@@ -4,7 +4,7 @@ echo "Starting to build Keycloak server."
+ ( while : ; do echo "Building, please wait..." ; sleep 50 ; done ) &
+ BUILDING_PID=$!
+ TMPFILE=`mktemp`
+-if ! mvn -Pdistribution -pl distribution/server-dist -am -Dmaven.test.skip clean install -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn &> "$TMPFILE"; then
++if ! mvn -Pdistribution -pl distribution/server-legacy-dist -am -Dmaven.test.skip clean install -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn &> "$TMPFILE"; then
+     cat "$TMPFILE"
+     kill $BUILDING_PID
+     exit 1
+diff --git a/.ci/source_clear.sh b/.ci/source_clear.sh
+index 2e2a0ba6d6..eb7cd17297 100644
+--- a/.ci/source_clear.sh
++++ b/.ci/source_clear.sh
+@@ -6,7 +6,7 @@ set +e -v -x
+ pushd "$(dirname "${BASH_SOURCE[0]}")/../"
+ 
+ mvn -B -q \
+-    -Pdistribution -pl distribution/server-dist \
++    -Pdistribution -pl distribution/server-legacy-dist \
+     -am -Dmaven.test.skip clean install \
+     -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn \
+     -Dmaven.javadoc.skip=true \
+diff --git a/.github/workflows/build-and-release.yml b/.github/workflows/build-and-release.yml
+index 6c8972b6d2..9c9cc9460e 100644
+--- a/.github/workflows/build-and-release.yml
++++ b/.github/workflows/build-and-release.yml
+@@ -142,4 +142,4 @@ jobs:
+           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         run: |
+           gh release create $GIT_TAG -t $GIT_TAG
+-          gh release upload $GIT_TAG distribution/server-dist/target/keycloak-$GIT_TAG.zip
++          gh release upload $GIT_TAG distribution/server-legacy-dist/target/keycloak-$GIT_TAG.zip
